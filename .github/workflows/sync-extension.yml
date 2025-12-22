@@ -65,26 +65,31 @@ jobs:
 
         echo "📁 Downloading extension-files.tar.gz from release..."
 
-        # Get the download URL for extension-files.tar.gz
-        TARBALL_URL=$(curl -s -H "Authorization: token ${{ secrets.SENTIENCE_CHROME_TOKEN }}" \
+        # For private repos, use the API URL with asset ID, not browser_download_url
+        ASSET_INFO=$(curl -s -H "Authorization: token ${{ secrets.SENTIENCE_CHROME_TOKEN }}" \
           "https://api.github.com/repos/$REPO/releases/tags/$TAG" | \
-          jq -r '.assets[] | select(.name=="extension-files.tar.gz") | .browser_download_url')
+          jq -r '.assets[] | select(.name=="extension-files.tar.gz") | "\(.id)|\(.url)"')
 
-        if [ -z "$TARBALL_URL" ] || [ "$TARBALL_URL" == "null" ]; then
+        if [ -z "$ASSET_INFO" ] || [ "$ASSET_INFO" == "null" ]; then
           echo "❌ extension-files.tar.gz not found in release assets"
           echo "Available assets:"
           curl -s -H "Authorization: token ${{ secrets.SENTIENCE_CHROME_TOKEN }}" \
             "https://api.github.com/repos/$REPO/releases/tags/$TAG" | \
-            jq -r '.assets[].name'
+            jq -r '.assets[] | "\(.name) (id: \(.id))"'
           exit 1
         fi
 
-        echo "  Downloading from: $TARBALL_URL"
-        # Use Accept header for private repos to get the asset directly
+        ASSET_ID=$(echo "$ASSET_INFO" | cut -d'|' -f1)
+        ASSET_URL=$(echo "$ASSET_INFO" | cut -d'|' -f2)
+
+        echo "  Asset ID: $ASSET_ID"
+        echo "  Downloading from API: $ASSET_URL"
+
+        # Download using the API URL with Accept header (required for private repos)
         curl -L \
           -H "Authorization: token ${{ secrets.SENTIENCE_CHROME_TOKEN }}" \
           -H "Accept: application/octet-stream" \
-          "$TARBALL_URL" -o extension-files.tar.gz
+          "$ASSET_URL" -o extension-files.tar.gz
 
         # Verify download
         if [ ! -f "extension-files.tar.gz" ]; then
