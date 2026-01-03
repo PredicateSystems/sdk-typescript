@@ -7,6 +7,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { TraceSink } from './sink';
+import { TraceEvent, TraceStats } from './types';
 
 /**
  * JsonlTraceSink writes trace events to a JSONL file (one JSON object per line)
@@ -55,9 +56,9 @@ export class JsonlTraceSink extends TraceSink {
 
   /**
    * Emit a trace event (write as JSON line)
-   * @param event - Event dictionary
+   * @param event - Trace event to emit
    */
-  emit(event: Record<string, any>): void {
+  emit(event: TraceEvent): void {
     if (this.closed) {
       // Only warn in non-test environments to avoid test noise
       const isTestEnv = process.env.CI === 'true' || 
@@ -195,14 +196,14 @@ export class JsonlTraceSink extends TraceSink {
 
   /**
    * Extract execution statistics from trace file (for local traces).
-   * @returns Dictionary with stats fields (same format as Tracer.getStats())
+   * @returns Trace statistics
    */
-  getStats(): Record<string, any> {
+  getStats(): TraceStats {
     try {
       // Read trace file to extract stats
       const traceContent = fs.readFileSync(this.path, 'utf-8');
       const lines = traceContent.split('\n').filter(line => line.trim());
-      const events: any[] = [];
+      const events: TraceEvent[] = [];
 
       for (const line of lines) {
         try {
@@ -268,11 +269,11 @@ export class JsonlTraceSink extends TraceSink {
       const totalEvents = events.length;
 
       // Infer final status
-      let finalStatus = 'unknown';
+      let finalStatus: TraceStats['final_status'] = 'unknown';
       // Check for run_end event with status
       if (runEnd) {
         const status = runEnd.data?.status;
-        if (['success', 'failure', 'partial', 'unknown'].includes(status)) {
+        if (status === 'success' || status === 'failure' || status === 'partial' || status === 'unknown') {
           finalStatus = status;
         }
       } else {
