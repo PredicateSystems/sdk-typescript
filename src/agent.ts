@@ -11,6 +11,7 @@ import { LLMProvider, LLMResponse } from './llm-provider';
 import { Tracer } from './tracing/tracer';
 import { TraceEventData, TraceElement } from './tracing/types';
 import { randomUUID, createHash } from 'crypto';
+import { SnapshotDiff } from './snapshot-diff';
 
 /**
  * Execution result from agent.act()
@@ -90,6 +91,7 @@ export class SentienceAgent {
   private history: HistoryEntry[];
   private tokenUsage: TokenStats;
   private showOverlay: boolean;
+  private previousSnapshot?: Snapshot;
 
   /**
    * Initialize Sentience Agent
@@ -203,35 +205,66 @@ export class SentienceAgent {
           throw new Error(`Snapshot failed: ${snap.error}`);
         }
 
+        // Compute diff_status by comparing with previous snapshot
+        const elementsWithDiff = SnapshotDiff.computeDiffStatus(snap, this.previousSnapshot);
+
+        // Create snapshot with diff_status populated
+        const snapWithDiff: Snapshot = {
+          ...snap,
+          elements: elementsWithDiff
+        };
+
+        // Update previous snapshot for next comparison
+        this.previousSnapshot = snap;
 
         // Apply element filtering based on goal
-        const filteredElements = this.filterElements(snap, goal);
+        const filteredElements = this.filterElements(snapWithDiff, goal);
 
         // Create filtered snapshot
         const filteredSnap: Snapshot = {
-          ...snap,
+          ...snapWithDiff,
           elements: filteredElements
         };
 
         // Emit snapshot event
         if (this.tracer) {
+          // Normalize importance values to importance_score (0-1 range) per snapshot
+          // Min-max normalization: (value - min) / (max - min)
+          const importanceValues = snapWithDiff.elements.map(el => el.importance);
+          const minImportance = importanceValues.length > 0 ? Math.min(...importanceValues) : 0;
+          const maxImportance = importanceValues.length > 0 ? Math.max(...importanceValues) : 0;
+          const importanceRange = maxImportance - minImportance;
+
           // Include ALL elements with full data for DOM tree display
-          // Use snap.elements (all elements) not filteredSnap.elements
-          const elements: TraceElement[] = snap.elements.map(el => ({
-            id: el.id,
-            role: el.role,
-            text: el.text,
-            bbox: el.bbox,
-            importance: el.importance,
-            visual_cues: el.visual_cues,
-            in_viewport: el.in_viewport,
-            is_occluded: el.is_occluded,
-            z_index: el.z_index,
-            rerank_index: el.rerank_index,
-            heuristic_index: el.heuristic_index,
-            ml_probability: el.ml_probability,
-            ml_score: el.ml_score,
-          }));
+          // Use snapWithDiff.elements (with diff_status) not filteredSnap.elements
+          const elements: TraceElement[] = snapWithDiff.elements.map(el => {
+            // Compute normalized importance_score
+            let importanceScore: number;
+            if (importanceRange > 0) {
+              importanceScore = (el.importance - minImportance) / importanceRange;
+            } else {
+              // If all elements have same importance, set to 0.5
+              importanceScore = 0.5;
+            }
+
+            return {
+              id: el.id,
+              role: el.role,
+              text: el.text,
+              bbox: el.bbox,
+              importance: el.importance,
+              importance_score: importanceScore,
+              visual_cues: el.visual_cues,
+              in_viewport: el.in_viewport,
+              is_occluded: el.is_occluded,
+              z_index: el.z_index,
+              rerank_index: el.rerank_index,
+              heuristic_index: el.heuristic_index,
+              ml_probability: el.ml_probability,
+              ml_score: el.ml_score,
+              diff_status: el.diff_status,
+            };
+          });
 
           const snapshotData: TraceEventData = {
             url: snap.url,
