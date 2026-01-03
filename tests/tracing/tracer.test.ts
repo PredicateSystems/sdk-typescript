@@ -113,7 +113,7 @@ describe('Tracer', () => {
       const tracer = new Tracer('test-run', sink);
 
       const before = Date.now();
-      tracer.emit('test', { data: 'test' });
+      tracer.emit('test', { goal: 'test' });
       const after = Date.now();
 
       await tracer.close();
@@ -481,8 +481,8 @@ describe('Tracer', () => {
       const mockSink = new MockSink();
       const tracer = new Tracer('test-run', mockSink);
 
-      tracer.emit('event1', { data: 1 });
-      tracer.emit('event2', { data: 2 });
+      tracer.emit('event1', { goal: 'event1' });
+      tracer.emit('event2', { goal: 'event2' });
 
       expect(mockSink.events.length).toBe(2);
       expect(mockSink.events[0].type).toBe('event1');

@@ -160,7 +160,13 @@ export class Tracer {
     // Ensure totalSteps is at least the provided steps value
     this.totalSteps = Math.max(this.totalSteps, steps);
 
-    this.emit('run_end', { steps, status: finalStatus });
+    // Ensure finalStatus is a valid status value
+    const validStatus: 'success' | 'failure' | 'partial' | 'unknown' = 
+      finalStatus === 'success' || finalStatus === 'failure' || finalStatus === 'partial' || finalStatus === 'unknown'
+        ? finalStatus
+        : 'unknown';
+
+    this.emit('run_end', { steps, status: validStatus });
   }
 
   /**

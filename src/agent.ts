@@ -9,6 +9,7 @@ import { click, typeText, press } from './actions';
 import { Snapshot, Element, ActionResult } from './types';
 import { LLMProvider, LLMResponse } from './llm-provider';
 import { Tracer } from './tracing/tracer';
+import { TraceEventData, TraceElement } from './tracing/types';
 import { randomUUID, createHash } from 'crypto';
 
 /**
@@ -216,25 +217,27 @@ export class SentienceAgent {
         if (this.tracer) {
           // Include ALL elements with full data for DOM tree display
           // Use snap.elements (all elements) not filteredSnap.elements
-          const snapshotData: any = {
+          const elements: TraceElement[] = snap.elements.map(el => ({
+            id: el.id,
+            role: el.role,
+            text: el.text,
+            bbox: el.bbox,
+            importance: el.importance,
+            visual_cues: el.visual_cues,
+            in_viewport: el.in_viewport,
+            is_occluded: el.is_occluded,
+            z_index: el.z_index,
+            rerank_index: el.rerank_index,
+            heuristic_index: el.heuristic_index,
+            ml_probability: el.ml_probability,
+            ml_score: el.ml_score,
+          }));
+
+          const snapshotData: TraceEventData = {
             url: snap.url,
             element_count: snap.elements.length,
             timestamp: snap.timestamp,
-            elements: snap.elements.map(el => ({
-              id: el.id,
-              role: el.role,
-              text: el.text,
-              importance: el.importance,
-              bbox: el.bbox,
-              visual_cues: el.visual_cues,
-              in_viewport: el.in_viewport,
-              is_occluded: el.is_occluded,
-              z_index: el.z_index,
-              rerank_index: el.rerank_index,
-              heuristic_index: el.heuristic_index,
-              ml_probability: el.ml_probability,
-              ml_score: el.ml_score,
-            }))
+            elements,
           };
 
           // Always include screenshot in trace event for studio viewer compatibility
@@ -332,7 +335,8 @@ export class SentienceAgent {
           // Build LLM data
           const llmResponseText = llmResponse.content;
           const llmResponseHash = `sha256:${this.computeHash(llmResponseText)}`;
-          const llmData = {
+          const llmData: TraceEventData['llm'] = {
+            model: llmResponse.modelName,
             response_text: llmResponseText,
             response_hash: llmResponseHash,
             usage: {
@@ -343,7 +347,7 @@ export class SentienceAgent {
           };
           
           // Build exec data
-          const execData: any = {
+          const execData: TraceEventData['exec'] = {
             success: result.success,
             action: result.action || 'unknown',
             outcome: result.outcome || (result.success ? `Action ${result.action || 'unknown'} executed successfully` : `Action ${result.action || 'unknown'} failed`),
@@ -371,18 +375,21 @@ export class SentienceAgent {
           
           // Build verify data (simplified - based on success and url_changed)
           const verifyPassed = result.success && (result.urlChanged || result.action !== 'click');
-          const verifySignals: any = {
-            url_changed: result.urlChanged || false,
+          const verifySignals: TraceEventData['verify'] = {
+            passed: verifyPassed,
+            signals: {
+              url_changed: result.urlChanged || false,
+            },
           };
           if (result.error) {
-            verifySignals.error = result.error;
+            verifySignals.signals.error = result.error;
           }
           
           // Add elements_found array if element was targeted
           if (result.elementId !== undefined) {
             const bbox = this.getElementBbox(result.elementId, snap);
             if (bbox) {
-              verifySignals.elements_found = [
+              verifySignals.signals.elements_found = [
                 {
                   label: `Element ${result.elementId}`,
                   bounding_box: bbox,
@@ -391,13 +398,8 @@ export class SentienceAgent {
             }
           }
           
-          const verifyData = {
-            passed: verifyPassed,
-            signals: verifySignals,
-          };
-          
           // Build complete step_end event
-          const stepEndData = {
+          const stepEndData: TraceEventData = {
             v: 1,
             step_id: stepId,
             step_index: this.stepCount,
@@ -410,9 +412,9 @@ export class SentienceAgent {
             llm: llmData,
             exec: execData,
             post: {
-              url: postUrl,
+              url: postUrl || undefined,
             },
-            verify: verifyData,
+            verify: verifySignals,
           };
           
           this.tracer.emit('step_end', stepEndData, stepId);
