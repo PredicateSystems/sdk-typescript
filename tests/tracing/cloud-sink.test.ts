@@ -113,8 +113,8 @@ describe('CloudTraceSink', () => {
     it('should emit events to local temp file', async () => {
       const sink = new CloudTraceSink(uploadUrl, 'test-run-' + Date.now());
 
-      sink.emit({ v: 1, type: 'test1', seq: 1 });
-      sink.emit({ v: 1, type: 'test2', seq: 2 });
+      sink.emit({ v: 1, type: 'test1', seq: 1 } as any);
+      sink.emit({ v: 1, type: 'test2', seq: 2 } as any);
 
       await sink.close();
 
@@ -128,13 +128,13 @@ describe('CloudTraceSink', () => {
       await sink.close();
 
       expect(() => {
-        sink.emit({ v: 1, type: 'test', seq: 1 });
+        sink.emit({ v: 1, type: 'test', seq: 1 } as any);
       }).toThrow('CloudTraceSink is closed');
     });
 
     it('should be idempotent on multiple close calls', async () => {
       const sink = new CloudTraceSink(uploadUrl, 'test-run-' + Date.now());
-      sink.emit({ v: 1, type: 'test', seq: 1 });
+      sink.emit({ v: 1, type: 'test', seq: 1 } as any);
 
       await sink.close();
       await sink.close();

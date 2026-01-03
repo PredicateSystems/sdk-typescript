@@ -87,8 +87,8 @@ describe('JsonlTraceSink', () => {
   it('should emit events as JSON lines', async () => {
     const sink = new JsonlTraceSink(testFile);
 
-    sink.emit({ type: 'test1', data: 'hello' });
-    sink.emit({ type: 'test2', data: 'world' });
+    sink.emit({ type: 'test1', data: 'hello' } as any);
+    sink.emit({ type: 'test2', data: 'world' } as any);
 
     await sink.close();
     // Wait for file handle to be released on Windows (increased wait time)
