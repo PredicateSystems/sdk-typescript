@@ -18,6 +18,7 @@ import * as https from 'https';
 import * as http from 'http';
 import { URL } from 'url';
 import { TraceSink } from './sink';
+import { TraceEvent, TraceStats } from './types';
 
 /**
  * Optional logger interface for SDK users
@@ -135,9 +136,9 @@ export class CloudTraceSink extends TraceSink {
   /**
    * Emit a trace event to local temp file (fast, non-blocking)
    *
-   * @param event - Event dictionary from TraceEvent
+   * @param event - Trace event to emit
    */
-  emit(event: Record<string, any>): void {
+  emit(event: TraceEvent): void {
     if (this.closed) {
       throw new Error('CloudTraceSink is closed');
     }
@@ -341,7 +342,7 @@ export class CloudTraceSink extends TraceSink {
       // Read trace file to analyze events
       const traceContent = fs.readFileSync(this.tempFilePath, 'utf-8');
       const lines = traceContent.split('\n').filter(line => line.trim());
-      const events: any[] = [];
+      const events: TraceEvent[] = [];
 
       for (const line of lines) {
         try {
@@ -361,7 +362,7 @@ export class CloudTraceSink extends TraceSink {
         const event = events[i];
         if (event.type === 'run_end') {
           const status = event.data?.status;
-          if (['success', 'failure', 'partial', 'unknown'].includes(status)) {
+          if (status === 'success' || status === 'failure' || status === 'partial' || status === 'unknown') {
             return status;
           }
         }
@@ -393,14 +394,14 @@ export class CloudTraceSink extends TraceSink {
 
   /**
    * Extract execution statistics from trace file.
-   * @returns Dictionary with stats fields for /v1/traces/complete
+   * @returns Trace statistics for /v1/traces/complete
    */
-  private _extractStatsFromTrace(): Record<string, any> {
+  private _extractStatsFromTrace(): TraceStats {
     try {
       // Read trace file to extract stats
       const traceContent = fs.readFileSync(this.tempFilePath, 'utf-8');
       const lines = traceContent.split('\n').filter(line => line.trim());
-      const events: any[] = [];
+      const events: TraceEvent[] = [];
 
       for (const line of lines) {
         try {
@@ -472,7 +473,7 @@ export class CloudTraceSink extends TraceSink {
         total_steps: totalSteps,
         total_events: totalEvents,
         duration_ms: durationMs,
-        final_status: finalStatus,
+        final_status: finalStatus as TraceStats['final_status'],
         started_at: startedAt,
         ended_at: endedAt,
       };
@@ -967,16 +968,18 @@ export class CloudTraceSink extends TraceSink {
 
     // 2. Upload screenshots in parallel
     const uploadPromises: Promise<boolean>[] = [];
+    const uploadSequences: number[] = [];
 
-    for (const [seq, url] of uploadUrls.entries()) {
+    uploadUrls.forEach((url, seq) => {
       const screenshotData = screenshots.get(seq);
       if (!screenshotData) {
-        continue;
+        return;
       }
 
+      uploadSequences.push(seq);
       const uploadPromise = this._uploadSingleScreenshot(seq, url, screenshotData);
       uploadPromises.push(uploadPromise);
-    }
+    });
 
     // Wait for all uploads (max 10 concurrent)
     const results = await Promise.allSettled(uploadPromises.slice(0, 10));
@@ -997,7 +1000,7 @@ export class CloudTraceSink extends TraceSink {
       if (result.status === 'fulfilled' && result.value) {
         uploadedCount++;
       } else {
-        failedSequences.push(sequences[i]);
+        failedSequences.push(uploadSequences[i]!);
       }
     }
 
