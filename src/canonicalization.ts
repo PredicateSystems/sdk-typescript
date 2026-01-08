@@ -100,40 +100,43 @@ export function roundBBox(bbox: Partial<BBox>, precision: number = 2): BBox {
 }
 
 /**
- * Check if two bboxes are equal after rounding.
+ * Check if two bboxes are equal within a threshold.
  *
  * @param bbox1 - First bounding box
  * @param bbox2 - Second bounding box
- * @param precision - Grid size for rounding (default: 2)
- * @returns True if bboxes are equal after rounding
+ * @param threshold - Maximum allowed difference in pixels (default: 5.0)
+ * @returns True if all bbox properties differ by less than threshold
  */
 export function bboxEqual(
   bbox1: Partial<BBox>,
   bbox2: Partial<BBox>,
-  precision: number = 2
+  threshold: number = 5.0
 ): boolean {
-  const r1 = roundBBox(bbox1, precision);
-  const r2 = roundBBox(bbox2, precision);
-  return r1.x === r2.x && r1.y === r2.y && r1.width === r2.width && r1.height === r2.height;
+  return (
+    Math.abs((bbox1.x || 0) - (bbox2.x || 0)) <= threshold &&
+    Math.abs((bbox1.y || 0) - (bbox2.y || 0)) <= threshold &&
+    Math.abs((bbox1.width || 0) - (bbox2.width || 0)) <= threshold &&
+    Math.abs((bbox1.height || 0) - (bbox2.height || 0)) <= threshold
+  );
 }
 
 /**
- * Check if two bboxes differ after rounding.
+ * Check if two bboxes differ beyond the threshold.
  *
  * This is the inverse of bboxEqual, provided for semantic clarity
  * in diff detection code.
  *
  * @param bbox1 - First bounding box
  * @param bbox2 - Second bounding box
- * @param precision - Grid size for rounding (default: 2)
- * @returns True if bboxes differ after rounding
+ * @param threshold - Maximum allowed difference in pixels (default: 5.0)
+ * @returns True if any bbox property differs by more than threshold
  */
 export function bboxChanged(
   bbox1: Partial<BBox>,
   bbox2: Partial<BBox>,
-  precision: number = 2
+  threshold: number = 5.0
 ): boolean {
-  return !bboxEqual(bbox1, bbox2, precision);
+  return !bboxEqual(bbox1, bbox2, threshold);
 }
 
 /**
