@@ -67,3 +67,6 @@ export {
   selectByOrdinal,
   boostOrdinalElements,
 } from './ordinal';
+
+// Backends (browser-use integration)
+export * as backends from './backends';
