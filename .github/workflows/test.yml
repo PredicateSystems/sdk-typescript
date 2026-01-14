@@ -109,6 +109,51 @@ jobs:
           echo "Tests requiring extension may fail if extension is not available."
         fi
         
+    - name: Copy extension to dist for tests
+      if: runner.os != 'Windows'
+      shell: bash
+      run: |
+        # After build, copy extension from src/extension to dist/extension
+        # This is needed because tests run from dist/ and browser.ts looks for extension relative to __dirname
+        if [ -d "src/extension" ] && [ -f "src/extension/manifest.json" ]; then
+          echo "📦 Copying extension from src/extension to dist/extension..."
+          mkdir -p dist/extension
+          cp -r src/extension/* dist/extension/
+          
+          # Verify copy - check critical files
+          REQUIRED_FILES=(
+            "dist/extension/manifest.json"
+            "dist/extension/dist/background.js"
+            "dist/extension/dist/content.js"
+            "dist/extension/dist/injected_api.js"
+            "dist/extension/pkg/sentience_core.js"
+            "dist/extension/pkg/sentience_core_bg.wasm"
+          )
+          
+          MISSING_FILES=()
+          for file in "${REQUIRED_FILES[@]}"; do
+            if [ ! -f "$file" ]; then
+              MISSING_FILES+=("$file")
+            fi
+          done
+          
+          if [ ${#MISSING_FILES[@]} -ne 0 ]; then
+            echo "❌ Error: Missing required extension files after copy:"
+            printf '  - %s\n' "${MISSING_FILES[@]}"
+            echo ""
+            echo "Files in dist/extension:"
+            find dist/extension -type f | sort
+            exit 1
+          fi
+          
+          echo "✅ Extension copied to dist/extension/"
+          echo "📦 Extension structure:"
+          find dist/extension -type f | sort | head -15
+        else
+          echo "⚠️  Warning: src/extension not found, cannot copy to dist/extension"
+          echo "Tests requiring extension may fail."
+        fi
+        
     - name: Run tests
       run: |
         npm test

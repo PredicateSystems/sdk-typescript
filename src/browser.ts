@@ -488,6 +488,37 @@ export class SentienceBrowser implements IBrowser {
     // Verify extension is loaded and ready
     const extensionReady = await this.waitForExtension(this.page, 10000);
     if (!extensionReady) {
+      // Check if extension directory exists and has required files
+      let extensionFilesInfo = '';
+      try {
+        if (fs.existsSync(this.extensionPath)) {
+          const files = fs.readdirSync(this.extensionPath, { recursive: true });
+          extensionFilesInfo = `Extension directory exists. Files: ${files.join(', ')}`;
+
+          // Check for critical files
+          const criticalFiles = [
+            'manifest.json',
+            'dist/background.js',
+            'dist/content.js',
+            'dist/injected_api.js',
+            'pkg/sentience_core.js',
+            'pkg/sentience_core_bg.wasm',
+          ];
+          const missingFiles = criticalFiles.filter(f => {
+            const fullPath = path.join(this.extensionPath!, f);
+            return !fs.existsSync(fullPath);
+          });
+
+          if (missingFiles.length > 0) {
+            extensionFilesInfo += `\nMissing critical files: ${missingFiles.join(', ')}`;
+          }
+        } else {
+          extensionFilesInfo = `Extension directory does not exist: ${this.extensionPath}`;
+        }
+      } catch (e: any) {
+        extensionFilesInfo = `Error checking extension files: ${e.message}`;
+      }
+
       const diagnostics = await this.page.evaluate(() => {
         const win = window as any;
         return {
@@ -501,8 +532,9 @@ export class SentienceBrowser implements IBrowser {
       });
 
       throw new Error(
-        `Sentience extension failed to load after browser startup. ` +
+        `Sentience extension failed to load after browser startup.\n` +
           `Extension path: ${this.extensionPath}\n` +
+          `${extensionFilesInfo}\n` +
           `Diagnostics: ${JSON.stringify(diagnostics, null, 2)}\n` +
           `Make sure the extension is built and available at the expected location.`
       );
