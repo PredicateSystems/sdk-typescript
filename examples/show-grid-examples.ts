@@ -21,7 +21,7 @@ async function main() {
     if (!page) {
       throw new Error('Failed to get page after browser.start()');
     }
-    await page.goto('https://example.com', {
+    await page.goto('https://google.com', {
       waitUntil: 'domcontentloaded',
     });
     await new Promise((resolve) => setTimeout(resolve, 2000)); // Wait for page to fully load
@@ -30,8 +30,8 @@ async function main() {
     console.log('Example 1: Show all detected grids');
     console.log('='.repeat(60));
     // Show all grids (all in purple)
-    // Use local extension mode (use_api: false) to avoid API dependency
-    const snap = await snapshot(browser, { show_grid: true, use_api: true });
+    // Use local extension mode (use_api: false) to ensure layout data is computed
+    const snap = await snapshot(browser, { show_grid: true, use_api: false });
     console.log(`✅ Found ${snap.elements.length} elements`);
     console.log('   Purple borders appear around all detected grids for 5 seconds');
     await new Promise((resolve) => setTimeout(resolve, 6000)); // Wait to see the overlay
