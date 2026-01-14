@@ -117,8 +117,10 @@ jobs:
         # This is needed because tests run from dist/ and browser.ts looks for extension relative to __dirname
         if [ -d "src/extension" ] && [ -f "src/extension/manifest.json" ]; then
           echo "📦 Copying extension from src/extension to dist/extension..."
-          mkdir -p dist/extension
-          cp -r src/extension/* dist/extension/
+          # Remove destination if it exists to ensure clean copy
+          rm -rf dist/extension
+          # Copy entire extension directory preserving structure
+          cp -r src/extension dist/
           
           # Verify copy - check critical files
           REQUIRED_FILES=(
