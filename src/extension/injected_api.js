@@ -158,7 +158,12 @@
         return null;
     }
     function getText(el) {
-        return el.getAttribute("aria-label") ? el.getAttribute("aria-label") : "INPUT" === el.tagName ? el.value || el.placeholder || "" : "IMG" === el.tagName ? el.alt || "" : (el.innerText || "").replace(/\s+/g, " ").trim().substring(0, 100);
+        if (el.getAttribute("aria-label")) return el.getAttribute("aria-label");
+        if ("INPUT" === el.tagName) {
+            const t = el.getAttribute && el.getAttribute("type") || el.type || "";
+            return "password" === String(t).toLowerCase() ? el.placeholder || "" : el.value || el.placeholder || "";
+        }
+        return "IMG" === el.tagName ? el.alt || "" : (el.innerText || "").replace(/\s+/g, " ").trim().substring(0, 100);
     }
     function getClassName(el) {
         if (!el || !el.className) return "";
@@ -268,11 +273,17 @@
         try {
             !1 !== options.waitForStability && await async function(options = {}) {
                 const {minNodeCount: minNodeCount = 500, quietPeriod: quietPeriod = 200, maxWait: maxWait = 5e3} = options, startTime = Date.now();
+                try {
+                    window.__sentience_lastMutationTs = performance.now();
+                } catch (e) {}
                 return new Promise(resolve => {
                     if (document.querySelectorAll("*").length >= minNodeCount) {
                         let lastChange = Date.now();
                         const observer = new MutationObserver(() => {
                             lastChange = Date.now();
+                            try {
+                                window.__sentience_lastMutationTs = performance.now();
+                            } catch (e) {}
                         });
                         observer.observe(document.body, {
                             childList: !0,
@@ -288,11 +299,17 @@
                     } else {
                         const observer = new MutationObserver(() => {
                             const currentCount = document.querySelectorAll("*").length, totalWait = Date.now() - startTime;
+                            try {
+                                window.__sentience_lastMutationTs = performance.now();
+                            } catch (e) {}
                             if (currentCount >= minNodeCount) {
                                 observer.disconnect();
                                 let lastChange = Date.now();
                                 const quietObserver = new MutationObserver(() => {
                                     lastChange = Date.now();
+                                    try {
+                                        window.__sentience_lastMutationTs = performance.now();
+                                    } catch (e) {}
                                 });
                                 quietObserver.observe(document.body, {
                                     childList: !0,
@@ -323,14 +340,15 @@
                 if (!el.getBoundingClientRect) return;
                 const rect = el.getBoundingClientRect();
                 if (rect.width < 5 || rect.height < 5) return;
-                if ("span" === el.tagName.toLowerCase()) {
+                const tagName = el.tagName.toLowerCase();
+                if ("span" === tagName) {
                     if (el.closest("a")) return;
                     const childLink = el.querySelector("a[href]");
                     if (childLink && childLink.href) return;
                     options.debug && el.className && el.className.includes("titleline");
                 }
                 window.sentience_registry[idx] = el;
-                const semanticText = function(el, options = {}) {
+                const inputType = "input" === tagName ? toSafeString(el.getAttribute && el.getAttribute("type") || el.type || null) : null, isPasswordInput = inputType && "password" === inputType.toLowerCase(), semanticText = function(el, options = {}) {
                     if (!el) return {
                         text: "",
                         source: null
@@ -341,10 +359,10 @@
                         source: "explicit_aria_label"
                     };
                     if ("INPUT" === el.tagName) {
-                        const value = (el.value || el.placeholder || "").trim();
+                        const t = el.getAttribute && el.getAttribute("type") || el.type || "", isPassword = "password" === String(t).toLowerCase(), value = (isPassword ? el.placeholder || "" : el.value || el.placeholder || "").trim();
                         if (value) return {
                             text: value,
-                            source: "input_value"
+                            source: isPassword ? "input_placeholder" : "input_value"
                         };
                     }
                     if ("IMG" === el.tagName) {
@@ -417,9 +435,53 @@
                     }
                     return null;
                 }(el);
+                let safeValue = null, valueRedacted = null;
+                try {
+                    if (void 0 !== el.value || el.getAttribute && null !== el.getAttribute("value")) if (isPasswordInput) safeValue = null, 
+                    valueRedacted = "true"; else {
+                        const rawValue = void 0 !== el.value ? String(el.value) : String(el.getAttribute("value"));
+                        safeValue = rawValue.length > 200 ? rawValue.substring(0, 200) : rawValue, valueRedacted = "false";
+                    }
+                } catch (e) {}
+                const accessibleName = toSafeString(function(el) {
+                    if (!el || !el.getAttribute) return "";
+                    const ariaLabel = el.getAttribute("aria-label");
+                    if (ariaLabel && ariaLabel.trim()) return ariaLabel.trim().substring(0, 200);
+                    const labelledBy = el.getAttribute("aria-labelledby");
+                    if (labelledBy && labelledBy.trim()) {
+                        const ids = labelledBy.split(/\s+/).filter(id => id.trim()), texts = [];
+                        for (const id of ids) try {
+                            const ref = document.getElementById(id);
+                            if (!ref) continue;
+                            const txt = (ref.innerText || ref.textContent || ref.getAttribute?.("aria-label") || "").toString().trim();
+                            txt && texts.push(txt);
+                        } catch (e) {}
+                        if (texts.length > 0) return texts.join(" ").substring(0, 200);
+                    }
+                    try {
+                        if (el.labels && el.labels.length > 0) {
+                            const t = (el.labels[0].innerText || el.labels[0].textContent || "").toString().trim();
+                            if (t) return t.substring(0, 200);
+                        }
+                    } catch (e) {}
+                    try {
+                        const parentLabel = el.closest && el.closest("label");
+                        if (parentLabel) {
+                            const t = (parentLabel.innerText || parentLabel.textContent || "").toString().trim();
+                            if (t) return t.substring(0, 200);
+                        }
+                    } catch (e) {}
+                    const tag = (el.tagName || "").toUpperCase();
+                    if ("INPUT" === tag || "TEXTAREA" === tag) {
+                        const ph = (el.getAttribute("placeholder") || "").toString().trim();
+                        if (ph) return ph.substring(0, 200);
+                    }
+                    const title = el.getAttribute("title");
+                    return title && title.trim() ? title.trim().substring(0, 200) : "";
+                }(el) || null);
                 rawData.push({
                     id: idx,
-                    tag: el.tagName.toLowerCase(),
+                    tag: tagName,
                     rect: {
                         x: rect.x,
                         y: rect.y,
@@ -441,14 +503,21 @@
                     attributes: {
                         role: toSafeString(el.getAttribute("role")),
                         type_: toSafeString(el.getAttribute("type")),
+                        input_type: inputType,
                         aria_label: "explicit_aria_label" === semanticText?.source ? semanticText.text : toSafeString(el.getAttribute("aria-label")),
+                        name: accessibleName,
                         inferred_label: semanticText?.source && ![ "explicit_aria_label", "input_value", "img_alt", "inner_text" ].includes(semanticText.source) ? toSafeString(semanticText.text) : null,
                         label_source: semanticText?.source || null,
                         inferred_role: inferredRole ? toSafeString(inferredRole) : null,
                         href: toSafeString(el.href || el.getAttribute("href") || el.closest && el.closest("a")?.href || null),
                         class: toSafeString(getClassName(el)),
-                        value: void 0 !== el.value ? toSafeString(el.value) : toSafeString(el.getAttribute("value")),
-                        checked: void 0 !== el.checked ? String(el.checked) : null
+                        value: null !== safeValue ? toSafeString(safeValue) : null,
+                        value_redacted: valueRedacted,
+                        checked: void 0 !== el.checked ? String(el.checked) : null,
+                        disabled: void 0 !== el.disabled ? String(el.disabled) : null,
+                        aria_checked: toSafeString(el.getAttribute("aria-checked")),
+                        aria_disabled: toSafeString(el.getAttribute("aria-disabled")),
+                        aria_expanded: toSafeString(el.getAttribute("aria-expanded"))
                     },
                     text: toSafeString(textVal),
                     in_viewport: inView,
@@ -576,6 +645,17 @@
             }(options.screenshot));
             const cleanedElements = cleanElement(processed.elements), cleanedRawElements = cleanElement(processed.raw_elements);
             cleanedElements.length, cleanedRawElements.length;
+            let diagnostics;
+            try {
+                const lastMutationTs = window.__sentience_lastMutationTs, now = performance.now(), quietMs = "number" == typeof lastMutationTs && Number.isFinite(lastMutationTs) ? Math.max(0, now - lastMutationTs) : null, nodeCount = document.querySelectorAll("*").length;
+                diagnostics = {
+                    metrics: {
+                        ready_state: document.readyState || null,
+                        quiet_ms: quietMs,
+                        node_count: nodeCount
+                    }
+                };
+            } catch (e) {}
             return {
                 status: "success",
                 url: window.location.href,
@@ -585,7 +665,8 @@
                 },
                 elements: cleanedElements,
                 raw_elements: cleanedRawElements,
-                screenshot: screenshot
+                screenshot: screenshot,
+                diagnostics: diagnostics
             };
         } catch (error) {
             return {
