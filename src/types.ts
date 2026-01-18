@@ -17,7 +17,7 @@ export interface Viewport {
 export interface VisualCues {
   is_primary: boolean;
   background_color_name: string | null;
-  fallback_background_color_name: string | null;
+  fallback_background_color_name?: string | null;
   is_clickable: boolean;
 }
 
