@@ -166,7 +166,7 @@ export interface CaptchaEvidence {
 
 export interface CaptchaDiagnostics {
   detected: boolean;
-  provider_hint?: 'recaptcha' | 'hcaptcha' | 'turnstile' | 'unknown' | null;
+  provider_hint?: 'recaptcha' | 'hcaptcha' | 'turnstile' | 'arkose' | 'awswaf' | 'unknown' | null;
   confidence: number;
   evidence: CaptchaEvidence;
 }
