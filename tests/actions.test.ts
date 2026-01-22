@@ -4,17 +4,27 @@
 
 import {
   SentienceBrowser,
+  back,
+  check,
+  clear,
   click,
   typeText,
   press,
   scrollTo,
   clickRect,
+  selectOption,
+  submit,
   snapshot,
   find,
   BBox,
   Element,
+  uncheck,
+  uploadFile,
 } from '../src';
 import { createTestBrowser, getPageOrThrow } from './test-utils';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
 
 describe('Actions', () => {
   describe('click', () => {
@@ -362,6 +372,98 @@ describe('Actions', () => {
         const result = await clickRect(browser, { x: 100, y: 100, width: 50, height: 30 });
         expect(result.success).toBe(true);
         expect(result.duration_ms).toBeGreaterThan(0);
+      } finally {
+        await browser.close();
+      }
+    }, 60000);
+  });
+
+  describe('CRUD helpers', () => {
+    it('should clear/check/uncheck/select/upload/submit (best-effort)', async () => {
+      const browser = await createTestBrowser();
+      try {
+        const page = getPageOrThrow(browser);
+        await page.goto('https://example.com', { waitUntil: 'domcontentloaded', timeout: 20000 });
+        await page.setContent(`
+          <html><body>
+            <input id="t" value="hello" />
+            <input id="cb" type="checkbox" />
+            <select id="sel">
+              <option value="a">Alpha</option>
+              <option value="b">Beta</option>
+            </select>
+            <form id="f">
+              <input id="file" type="file" />
+              <button id="btn" type="submit">Submit</button>
+            </form>
+            <script>
+              window._submitted = false;
+              document.getElementById('f').addEventListener('submit', (e) => {
+                e.preventDefault();
+                window._submitted = true;
+              });
+            </script>
+          </body></html>
+        `);
+
+        await snapshot(browser, { screenshot: false, limit: 50 });
+
+        const idOf = async (predSrc: string): Promise<number> => {
+          const id = await page.evaluate((src: string) => {
+            const reg = (window as any).sentience_registry || {};
+            const pred = eval(src) as (el: any) => boolean; // test-only
+            for (const [id, el] of Object.entries(reg)) {
+              try {
+                if (pred(el)) return Number(id);
+              } catch {}
+            }
+            return null;
+          }, predSrc);
+          if (typeof id !== 'number') throw new Error('id not found');
+          return id;
+        };
+
+        const tid = await idOf("(el) => el && el.id === 't'");
+        const cbid = await idOf("(el) => el && el.id === 'cb'");
+        const selid = await idOf("(el) => el && el.id === 'sel'");
+        const fileid = await idOf("(el) => el && el.id === 'file'");
+        const btnid = await idOf("(el) => el && el.id === 'btn'");
+
+        expect((await clear(browser, tid)).success).toBe(true);
+        expect(
+          await page.evaluate(() => (document.getElementById('t') as HTMLInputElement).value)
+        ).toBe('');
+
+        expect((await check(browser, cbid)).success).toBe(true);
+        expect(
+          await page.evaluate(() => (document.getElementById('cb') as HTMLInputElement).checked)
+        ).toBe(true);
+
+        expect((await uncheck(browser, cbid)).success).toBe(true);
+        expect(
+          await page.evaluate(() => (document.getElementById('cb') as HTMLInputElement).checked)
+        ).toBe(false);
+
+        expect((await selectOption(browser, selid, 'b')).success).toBe(true);
+        expect(
+          await page.evaluate(() => (document.getElementById('sel') as HTMLSelectElement).value)
+        ).toBe('b');
+
+        const tmp = path.join(os.tmpdir(), `sentience-upload-${Date.now()}.txt`);
+        fs.writeFileSync(tmp, 'hi', 'utf8');
+        expect((await uploadFile(browser, fileid, tmp)).success).toBe(true);
+        expect(
+          await page.evaluate(
+            () => (document.getElementById('file') as HTMLInputElement).files?.[0]?.name
+          )
+        ).toBe(path.basename(tmp));
+
+        expect((await submit(browser, btnid)).success).toBe(true);
+        expect(await page.evaluate(() => (window as any)._submitted)).toBe(true);
+
+        // back() best-effort: just ensure it returns
+        const r = await back(browser);
+        expect(r.duration_ms).toBeGreaterThanOrEqual(0);
       } finally {
         await browser.close();
       }

@@ -38,6 +38,8 @@
  * ```
  */
 
+import * as fs from 'fs';
+import * as path from 'path';
 import { Page } from 'playwright';
 import { Snapshot } from './types';
 import { AssertContext, Predicate } from './verification';
@@ -336,6 +338,8 @@ export class AgentRuntime {
   stepIndex: number = 0;
   /** Most recent snapshot (for assertion context) */
   lastSnapshot: Snapshot | null = null;
+  /** Best-effort download records (Playwright downloads) */
+  private downloads: Array<Record<string, any>> = [];
 
   /** Failure artifact buffer (Phase 1) */
   private artifactBuffer: FailureArtifactBuffer | null = null;
@@ -438,6 +442,15 @@ export class AgentRuntime {
     this.browser = browser;
     this.page = page;
     this.tracer = tracer;
+
+    // Best-effort download tracking (does not change behavior unless a download occurs).
+    try {
+      this.page.on('download', download => {
+        void this.trackDownload(download);
+      });
+    } catch {
+      // ignore
+    }
   }
 
   /**
@@ -466,7 +479,46 @@ export class AgentRuntime {
       snapshot: this.lastSnapshot,
       url,
       stepId: this.stepId,
+      downloads: this.downloads,
     };
+  }
+
+  private async trackDownload(download: any): Promise<void> {
+    const rec: Record<string, any> = {
+      status: 'started',
+      suggested_filename: download?.suggestedFilename?.() ?? download?.suggested_filename,
+      url: download?.url?.() ?? download?.url,
+    };
+    this.downloads.push(rec);
+    try {
+      const p = (await download.path?.()) as string | null;
+      rec.status = 'completed';
+      if (p) {
+        rec.path = p;
+        try {
+          // Best-effort size and mime type (no new deps).
+          rec.size_bytes = Number(fs.statSync(p).size);
+          const ext = String(path.extname(p) || '').toLowerCase();
+          const mimeByExt: Record<string, string> = {
+            '.pdf': 'application/pdf',
+            '.txt': 'text/plain',
+            '.csv': 'text/csv',
+            '.json': 'application/json',
+            '.zip': 'application/zip',
+            '.png': 'image/png',
+            '.jpg': 'image/jpeg',
+            '.jpeg': 'image/jpeg',
+            '.webp': 'image/webp',
+          };
+          if (mimeByExt[ext]) rec.mime_type = mimeByExt[ext];
+        } catch {
+          // ignore
+        }
+      }
+    } catch (e: any) {
+      rec.status = 'failed';
+      rec.error = String(e?.message ?? e);
+    }
   }
 
   /**

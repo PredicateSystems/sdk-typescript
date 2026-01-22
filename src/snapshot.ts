@@ -2,7 +2,6 @@
  * Snapshot functionality - calls window.sentience.snapshot() or server-side API
  */
 
-import { SentienceBrowser } from './browser';
 import { IBrowser } from './protocols/browser-protocol';
 import { Snapshot } from './types';
 import * as fs from 'fs';
@@ -212,7 +211,7 @@ async function snapshotViaApi(
       () => typeof (window as any).sentience !== 'undefined',
       5000
     );
-  } catch (e) {
+  } catch (_e) {
     throw new Error(
       'Sentience extension failed to inject. Cannot collect raw data for API processing.'
     );
@@ -239,9 +238,15 @@ async function snapshotViaApi(
   // Use raw_elements (raw data) instead of elements (processed data)
   // Server validates API key and applies proprietary ranking logic
   const clientMetrics = rawResult?.diagnostics?.metrics;
-  const clientDiagnostics = rawResult?.diagnostics?.captcha
-    ? { captcha: rawResult.diagnostics.captcha }
-    : undefined;
+  const diag = rawResult?.diagnostics;
+  const clientDiagnostics =
+    diag?.captcha || diag?.requires_vision || diag?.requires_vision_reason
+      ? {
+          captcha: diag?.captcha,
+          requires_vision: diag?.requires_vision,
+          requires_vision_reason: diag?.requires_vision_reason,
+        }
+      : undefined;
   const payload = {
     raw_elements: rawResult.raw_elements || [], // Raw data needed for server processing
     url: rawResult.url || '',
