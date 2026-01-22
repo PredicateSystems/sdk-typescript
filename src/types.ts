@@ -176,6 +176,9 @@ export interface SnapshotDiagnostics {
   reasons?: string[];
   metrics?: SnapshotDiagnosticsMetrics;
   captcha?: CaptchaDiagnostics;
+  /** P1-01: forward-compatible vision recommendation signal (optional) */
+  requires_vision?: boolean | null;
+  requires_vision_reason?: string | null;
 }
 
 /**

@@ -22,6 +22,7 @@ import {
   valueContains,
   isExpanded,
   isCollapsed,
+  downloadCompleted,
 } from '../src/verification';
 import { Snapshot, Element, BBox, Viewport, VisualCues } from '../src/types';
 
@@ -217,6 +218,36 @@ describe('state-aware predicates', () => {
 
     expect(isExpanded("text~'Menu'")(ctx).passed).toBe(true);
     expect(isCollapsed("text~'Details'")(ctx).passed).toBe(true);
+  });
+});
+
+describe('downloadCompleted', () => {
+  it('fails when no completed downloads', () => {
+    const pred = downloadCompleted();
+    const ctx: AssertContext = { snapshot: null, url: null, stepId: null, downloads: [] };
+    expect(pred(ctx).passed).toBe(false);
+  });
+
+  it('passes when any download completed', () => {
+    const pred = downloadCompleted();
+    const ctx: AssertContext = {
+      snapshot: null,
+      url: null,
+      stepId: null,
+      downloads: [{ status: 'started' }, { status: 'completed', suggested_filename: 'report.pdf' }],
+    };
+    expect(pred(ctx).passed).toBe(true);
+  });
+
+  it('passes when filename substring matches', () => {
+    const pred = downloadCompleted('report');
+    const ctx: AssertContext = {
+      snapshot: null,
+      url: null,
+      stepId: null,
+      downloads: [{ status: 'completed', suggested_filename: 'report.pdf' }],
+    };
+    expect(pred(ctx).passed).toBe(true);
   });
 });
 

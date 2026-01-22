@@ -5,7 +5,21 @@
 export { SentienceBrowser } from './browser';
 export { snapshot, SnapshotOptions } from './snapshot';
 export { query, find, parseSelector } from './query';
-export { click, typeText, press, scrollTo, clickRect, ClickRect } from './actions';
+export {
+  back,
+  check,
+  clear,
+  click,
+  clickRect,
+  ClickRect,
+  press,
+  scrollTo,
+  selectOption,
+  submit,
+  typeText,
+  uncheck,
+  uploadFile,
+} from './actions';
 export { CursorPolicy, CursorMode, CursorMovementMetadata, CursorPathPoint } from './cursor-policy';
 export { waitFor } from './wait';
 export { expect, Expectation } from './expect';
@@ -52,6 +66,7 @@ export {
   AssertOutcome,
   AssertContext,
   Predicate,
+  downloadCompleted,
   urlMatches,
   urlContains,
   exists,
@@ -72,6 +87,7 @@ export {
 export { AgentRuntime, AssertionHandle, AssertionRecord, EventuallyOptions } from './agent-runtime';
 export { RuntimeAgent } from './runtime-agent';
 export type { RuntimeStep, StepVerification } from './runtime-agent';
+export { parseVisionExecutorAction, executeVisionExecutorAction } from './vision-executor';
 export * from './captcha/types';
 export * from './captcha/strategies';
 

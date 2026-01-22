@@ -60,6 +60,8 @@ export interface AssertContext {
   url: string | null;
   /** Current step identifier (for trace correlation) */
   stepId: string | null;
+  /** Optional: non-snapshot state signals for verification (e.g., downloads). */
+  downloads?: Array<Record<string, any>> | null;
 }
 
 /**
@@ -67,6 +69,32 @@ export interface AssertContext {
  * A predicate takes context and returns an outcome.
  */
 export type Predicate = (ctx: AssertContext) => AssertOutcome;
+
+/**
+ * Predicate that passes if a browser download has completed.
+ *
+ * Notes:
+ * - This relies on `AssertContext.downloads` being populated by the runtime/browser.
+ */
+export function downloadCompleted(filenameSubstring?: string): Predicate {
+  return (ctx: AssertContext): AssertOutcome => {
+    const downloads = ctx.downloads ?? [];
+    for (const d of downloads) {
+      if (String(d?.status ?? '') !== 'completed') continue;
+      const fname = String(d?.filename ?? d?.suggested_filename ?? '');
+      if (!filenameSubstring || fname.includes(filenameSubstring)) {
+        return { passed: true, reason: '', details: { download: d } };
+      }
+    }
+    return {
+      passed: false,
+      reason: filenameSubstring
+        ? `no completed download matched: ${filenameSubstring}`
+        : 'no completed downloads',
+      details: { filenameSubstring, downloads },
+    };
+  };
+}
 
 /**
  * Create a predicate that checks if current URL matches a regex pattern.

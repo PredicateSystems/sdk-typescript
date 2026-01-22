@@ -341,6 +341,528 @@ export async function typeText(
 }
 
 /**
+ * Clear the value of an input/textarea element (best-effort).
+ */
+export async function clear(
+  browser: IBrowser,
+  elementId: number,
+  takeSnapshot: boolean = false
+): Promise<ActionResult> {
+  const page = browser.getPage();
+  if (!page) throw new Error('Browser not started. Call start() first.');
+
+  const startTime = Date.now();
+  const urlBefore = page.url();
+
+  const ok = await BrowserEvaluator.evaluate(
+    page,
+    id => {
+      const el = (window as any).sentience_registry?.[id];
+      if (!el) return false;
+      try {
+        el.focus?.();
+      } catch {
+        /* ignore */
+      }
+      if ('value' in el) {
+        el.value = '';
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+        return true;
+      }
+      return false;
+    },
+    elementId
+  );
+
+  if (!ok) {
+    return {
+      success: false,
+      duration_ms: Date.now() - startTime,
+      outcome: 'error',
+      error: { code: 'clear_failed', reason: 'Element not found or not clearable' },
+    };
+  }
+
+  try {
+    await page.waitForTimeout(250);
+  } catch {
+    /* ignore */
+  }
+
+  const durationMs = Date.now() - startTime;
+  const urlAfter = page.url();
+  const urlChanged = urlBefore !== urlAfter;
+  const outcome = urlChanged ? 'navigated' : 'dom_updated';
+
+  let snapshotAfter: Snapshot | undefined;
+  if (takeSnapshot) {
+    snapshotAfter = await snapshot(browser);
+  }
+
+  return {
+    success: true,
+    duration_ms: durationMs,
+    outcome,
+    url_changed: urlChanged,
+    snapshot_after: snapshotAfter,
+  };
+}
+
+/**
+ * Ensure a checkbox/radio is checked (best-effort).
+ */
+export async function check(
+  browser: IBrowser,
+  elementId: number,
+  takeSnapshot: boolean = false
+): Promise<ActionResult> {
+  const page = browser.getPage();
+  if (!page) throw new Error('Browser not started. Call start() first.');
+
+  const startTime = Date.now();
+  const urlBefore = page.url();
+
+  const ok = await BrowserEvaluator.evaluate(
+    page,
+    id => {
+      const el = (window as any).sentience_registry?.[id];
+      if (!el) return false;
+      try {
+        el.focus?.();
+      } catch {
+        /* ignore */
+      }
+      if (!('checked' in el)) return false;
+      if (el.checked === true) return true;
+      try {
+        el.click();
+      } catch {
+        return false;
+      }
+      return true;
+    },
+    elementId
+  );
+
+  if (!ok) {
+    return {
+      success: false,
+      duration_ms: Date.now() - startTime,
+      outcome: 'error',
+      error: { code: 'check_failed', reason: 'Element not found or not checkable' },
+    };
+  }
+
+  try {
+    await page.waitForTimeout(250);
+  } catch {
+    /* ignore */
+  }
+
+  const durationMs = Date.now() - startTime;
+  const urlAfter = page.url();
+  const urlChanged = urlBefore !== urlAfter;
+  const outcome = urlChanged ? 'navigated' : 'dom_updated';
+
+  let snapshotAfter: Snapshot | undefined;
+  if (takeSnapshot) snapshotAfter = await snapshot(browser);
+
+  return {
+    success: true,
+    duration_ms: durationMs,
+    outcome,
+    url_changed: urlChanged,
+    snapshot_after: snapshotAfter,
+  };
+}
+
+/**
+ * Ensure a checkbox/radio is unchecked (best-effort).
+ */
+export async function uncheck(
+  browser: IBrowser,
+  elementId: number,
+  takeSnapshot: boolean = false
+): Promise<ActionResult> {
+  const page = browser.getPage();
+  if (!page) throw new Error('Browser not started. Call start() first.');
+
+  const startTime = Date.now();
+  const urlBefore = page.url();
+
+  const ok = await BrowserEvaluator.evaluate(
+    page,
+    id => {
+      const el = (window as any).sentience_registry?.[id];
+      if (!el) return false;
+      try {
+        el.focus?.();
+      } catch {
+        /* ignore */
+      }
+      if (!('checked' in el)) return false;
+      if (el.checked === false) return true;
+      try {
+        el.click();
+      } catch {
+        return false;
+      }
+      return true;
+    },
+    elementId
+  );
+
+  if (!ok) {
+    return {
+      success: false,
+      duration_ms: Date.now() - startTime,
+      outcome: 'error',
+      error: { code: 'uncheck_failed', reason: 'Element not found or not uncheckable' },
+    };
+  }
+
+  try {
+    await page.waitForTimeout(250);
+  } catch {
+    /* ignore */
+  }
+
+  const durationMs = Date.now() - startTime;
+  const urlAfter = page.url();
+  const urlChanged = urlBefore !== urlAfter;
+  const outcome = urlChanged ? 'navigated' : 'dom_updated';
+
+  let snapshotAfter: Snapshot | undefined;
+  if (takeSnapshot) snapshotAfter = await snapshot(browser);
+
+  return {
+    success: true,
+    duration_ms: durationMs,
+    outcome,
+    url_changed: urlChanged,
+    snapshot_after: snapshotAfter,
+  };
+}
+
+/**
+ * Select an option in a <select> element by matching option value or label (best-effort).
+ */
+export async function selectOption(
+  browser: IBrowser,
+  elementId: number,
+  option: string,
+  takeSnapshot: boolean = false
+): Promise<ActionResult> {
+  const page = browser.getPage();
+  if (!page) throw new Error('Browser not started. Call start() first.');
+
+  const startTime = Date.now();
+  const urlBefore = page.url();
+
+  const ok = await BrowserEvaluator.evaluate(
+    page,
+    (args: { id: number; option: string }) => {
+      const el = (window as any).sentience_registry?.[args.id];
+      if (!el) return false;
+      const tag = String(el.tagName || '').toUpperCase();
+      if (tag !== 'SELECT') return false;
+      const needle = String(args.option ?? '');
+      const opts = Array.from((el.options as any[]) || []);
+      let chosen: any = null;
+      for (const o of opts) {
+        const oo: any = o;
+        if (String(oo.value) === needle || String(oo.text) === needle) {
+          chosen = o;
+          break;
+        }
+      }
+      if (!chosen) {
+        for (const o of opts) {
+          const oo: any = o;
+          if (String(oo.text || '').includes(needle)) {
+            chosen = o;
+            break;
+          }
+        }
+      }
+      if (!chosen) return false;
+      el.value = chosen.value;
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+      return true;
+    },
+    { id: elementId, option }
+  );
+
+  if (!ok) {
+    return {
+      success: false,
+      duration_ms: Date.now() - startTime,
+      outcome: 'error',
+      error: { code: 'select_failed', reason: 'Element not found or option not found' },
+    };
+  }
+
+  try {
+    await page.waitForTimeout(250);
+  } catch {
+    /* ignore */
+  }
+
+  const durationMs = Date.now() - startTime;
+  const urlAfter = page.url();
+  const urlChanged = urlBefore !== urlAfter;
+  const outcome = urlChanged ? 'navigated' : 'dom_updated';
+
+  let snapshotAfter: Snapshot | undefined;
+  if (takeSnapshot) snapshotAfter = await snapshot(browser);
+
+  return {
+    success: true,
+    duration_ms: durationMs,
+    outcome,
+    url_changed: urlChanged,
+    snapshot_after: snapshotAfter,
+  };
+}
+
+/**
+ * Upload a local file via an <input type="file"> element (best-effort).
+ */
+export async function uploadFile(
+  browser: IBrowser,
+  elementId: number,
+  filePath: string,
+  takeSnapshot: boolean = false
+): Promise<ActionResult> {
+  const page = browser.getPage();
+  if (!page) throw new Error('Browser not started. Call start() first.');
+
+  const startTime = Date.now();
+  const urlBefore = page.url();
+
+  let success = false;
+  let errorMsg: string | undefined;
+  try {
+    // First try: grab the exact element handle from the sentience registry.
+    try {
+      const handle = await page.evaluateHandle(
+        '(id) => (window.sentience_registry && window.sentience_registry[id]) || null',
+        elementId
+      );
+      const el = (handle as any).asElement?.() ?? null;
+      if (!el) throw new Error('Element not found');
+      await el.setInputFiles(filePath);
+      success = true;
+    } catch {
+      // Fallback: resolve a selector from the element's attributes and use page.setInputFiles().
+      const attrs = await BrowserEvaluator.evaluate(
+        page,
+        id => {
+          const el = (window as any).sentience_registry?.[id];
+          if (!el) return null;
+          const tag = String(el.tagName || '').toUpperCase();
+          const type = String(el.type || '').toLowerCase();
+          const idAttr = el.id ? String(el.id) : null;
+          const nameAttr = el.name ? String(el.name) : null;
+          return { tag, type, id: idAttr, name: nameAttr };
+        },
+        elementId
+      );
+
+      let selector: string | null = null;
+      if (attrs && attrs.tag === 'INPUT' && attrs.type === 'file') {
+        if (attrs.id) selector = `input#${attrs.id}`;
+        else if (attrs.name) selector = `input[name="${String(attrs.name).replace(/"/g, '\\"')}"]`;
+      }
+      if (!selector) throw new Error('Element not found');
+      await page.setInputFiles(selector, filePath);
+      success = true;
+    }
+  } catch (e: any) {
+    success = false;
+    errorMsg = String(e?.message ?? e);
+  }
+
+  try {
+    await page.waitForTimeout(250);
+  } catch {
+    /* ignore */
+  }
+
+  const durationMs = Date.now() - startTime;
+  const urlAfter = page.url();
+  const urlChanged = urlBefore !== urlAfter;
+  const outcome = urlChanged ? 'navigated' : success ? 'dom_updated' : 'error';
+
+  let snapshotAfter: Snapshot | undefined;
+  if (takeSnapshot) {
+    try {
+      snapshotAfter = await snapshot(browser);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  return {
+    success,
+    duration_ms: durationMs,
+    outcome,
+    url_changed: urlChanged,
+    snapshot_after: snapshotAfter,
+    error: success ? undefined : { code: 'upload_failed', reason: errorMsg ?? 'upload failed' },
+  };
+}
+
+/**
+ * Submit a form (best-effort) by clicking a submit control or calling requestSubmit().
+ */
+export async function submit(
+  browser: IBrowser,
+  elementId: number,
+  takeSnapshot: boolean = false
+): Promise<ActionResult> {
+  const page = browser.getPage();
+  if (!page) throw new Error('Browser not started. Call start() first.');
+
+  const startTime = Date.now();
+  const urlBefore = page.url();
+
+  const ok = await BrowserEvaluator.evaluate(
+    page,
+    id => {
+      const el = (window as any).sentience_registry?.[id];
+      if (!el) return false;
+      try {
+        el.focus?.();
+      } catch {
+        /* ignore */
+      }
+      const tag = String(el.tagName || '').toUpperCase();
+      if (tag === 'FORM') {
+        if (typeof el.requestSubmit === 'function') {
+          el.requestSubmit();
+          return true;
+        }
+        try {
+          el.submit();
+          return true;
+        } catch {
+          return false;
+        }
+      }
+      const form = el.form;
+      if (form && typeof form.requestSubmit === 'function') {
+        form.requestSubmit();
+        return true;
+      }
+      try {
+        el.click();
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    elementId
+  );
+
+  if (!ok) {
+    return {
+      success: false,
+      duration_ms: Date.now() - startTime,
+      outcome: 'error',
+      error: { code: 'submit_failed', reason: 'Element not found or not submittable' },
+    };
+  }
+
+  try {
+    await page.waitForTimeout(500);
+  } catch {
+    /* ignore */
+  }
+
+  const durationMs = Date.now() - startTime;
+  const urlAfter = page.url();
+  const urlChanged = urlBefore !== urlAfter;
+  const outcome = urlChanged ? 'navigated' : 'dom_updated';
+
+  let snapshotAfter: Snapshot | undefined;
+  if (takeSnapshot) {
+    try {
+      snapshotAfter = await snapshot(browser);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  return {
+    success: true,
+    duration_ms: durationMs,
+    outcome,
+    url_changed: urlChanged,
+    snapshot_after: snapshotAfter,
+  };
+}
+
+/**
+ * Navigate back in history (best-effort).
+ */
+export async function back(
+  browser: IBrowser,
+  takeSnapshot: boolean = false
+): Promise<ActionResult> {
+  const page = browser.getPage();
+  if (!page) throw new Error('Browser not started. Call start() first.');
+
+  const startTime = Date.now();
+  const urlBefore = page.url();
+
+  let success = false;
+  let errorMsg: string | undefined;
+  try {
+    await page.goBack();
+    success = true;
+  } catch (e: any) {
+    success = false;
+    errorMsg = String(e?.message ?? e);
+  }
+
+  try {
+    await page.waitForTimeout(500);
+  } catch {
+    /* ignore */
+  }
+
+  const durationMs = Date.now() - startTime;
+  let urlChanged = false;
+  try {
+    urlChanged = urlBefore !== page.url();
+  } catch {
+    urlChanged = true;
+  }
+  const outcome = urlChanged ? 'navigated' : success ? 'dom_updated' : 'error';
+
+  let snapshotAfter: Snapshot | undefined;
+  if (takeSnapshot) {
+    try {
+      snapshotAfter = await snapshot(browser);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  return {
+    success,
+    duration_ms: durationMs,
+    outcome,
+    url_changed: urlChanged,
+    snapshot_after: snapshotAfter,
+    error: success ? undefined : { code: 'back_failed', reason: errorMsg ?? 'back failed' },
+  };
+}
+
+/**
  * Scroll an element into view
  *
  * Scrolls the page so that the specified element is visible in the viewport.
