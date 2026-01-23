@@ -169,12 +169,23 @@ export class TraceEventBuilder {
     attempt: number;
     preUrl: string;
     postUrl: string | null;
+    postSnapshotDigest?: string;
     snapshot: Snapshot;
     llmResponse: LLMResponse;
     result: AgentActResult;
   }): TraceEventData {
-    const { stepId, stepIndex, goal, attempt, preUrl, postUrl, snapshot, llmResponse, result } =
-      params;
+    const {
+      stepId,
+      stepIndex,
+      goal,
+      attempt,
+      preUrl,
+      postUrl,
+      postSnapshotDigest,
+      snapshot,
+      llmResponse,
+      result,
+    } = params;
 
     const snapshotDigest = this.buildSnapshotDigest(snapshot);
     const llmData = this.buildLLMData(llmResponse);
@@ -231,6 +242,7 @@ export class TraceEventBuilder {
       exec: execData,
       post: {
         url: postUrl || undefined,
+        snapshot_digest: postSnapshotDigest,
       },
       verify: verifyData,
     };
@@ -297,6 +309,7 @@ export class TraceEventBuilder {
     attempt: number;
     preUrl: string | null;
     postUrl: string | null;
+    postSnapshotDigest?: string;
     snapshot?: Snapshot | null;
     llmResponse?: LLMResponse | null;
     error: string;
@@ -310,6 +323,7 @@ export class TraceEventBuilder {
       preUrl,
       postUrl,
       snapshot,
+      postSnapshotDigest,
       llmResponse,
       error,
       durationMs,
@@ -390,6 +404,7 @@ export class TraceEventBuilder {
       exec: execData,
       post: {
         url: postUrl || undefined,
+        snapshot_digest: postSnapshotDigest,
       },
       verify: verifyData,
     };
