@@ -7,6 +7,7 @@ import { chromium, BrowserContext, Page } from 'playwright';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
+import { patchExampleDotCom } from './test-utils';
 
 describe('Browser Proxy Support', () => {
   describe('Proxy Parsing', () => {
@@ -228,6 +229,7 @@ describe('Browser Proxy Support', () => {
         if (!page) {
           throw new Error('Browser page is not available');
         }
+        patchExampleDotCom(page);
         await page.goto('https://example.com', { waitUntil: 'domcontentloaded', timeout: 20000 });
 
         const viewportSize = await page.evaluate(() => ({
@@ -293,6 +295,7 @@ describe('Browser Proxy Support', () => {
         expect(sentienceBrowser.getContext()).toBe(context);
 
         // Test that we can use it
+        patchExampleDotCom(page);
         await page.goto('https://example.com');
         await page.waitForLoadState('networkidle', { timeout: 10000 });
 

@@ -23,7 +23,7 @@ import {
   uncheck,
   uploadFile,
 } from '../src';
-import { createTestBrowser, getPageOrThrow } from './test-utils';
+import { createTestBrowser, getPageOrThrow, patchExampleDotCom } from './test-utils';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
@@ -220,8 +220,8 @@ describe('Actions', () => {
       try {
         await browser.start();
         const page = getPageOrThrow(browser);
+        patchExampleDotCom(page);
         await page.goto('https://example.com');
-        await page.waitForLoadState('networkidle', { timeout: 10000 });
 
         await expect(search(browser, 'sentience sdk', 'duckduckgo')).rejects.toThrow(
           'domain not allowed'

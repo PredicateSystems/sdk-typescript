@@ -13,6 +13,10 @@ export async function createTestBrowser(headless?: boolean): Promise<SentienceBr
   const browser = new SentienceBrowser(undefined, undefined, headless);
   try {
     await browser.start();
+    const page = browser.getPage();
+    if (page) {
+      patchExampleDotCom(page);
+    }
     return browser;
   } catch (e: any) {
     // Clean up browser on failure to prevent resource leaks
@@ -43,4 +47,29 @@ export function getPageOrThrow(browser: SentienceBrowser): Page {
     throw new Error('Browser page is not available. Make sure browser.start() was called.');
   }
   return page;
+}
+
+const DEFAULT_TEST_HTML = `<!doctype html>
+<html>
+  <head><meta charset="utf-8" /></head>
+  <body>
+    <a id="link" href="#ok">Example Link</a>
+    <input id="text" type="text" value="hello" />
+    <button id="btn" type="button">Click me</button>
+    <div style="height: 2000px;"></div>
+  </body>
+</html>`;
+
+export async function setTestPageContent(page: Page, html?: string): Promise<void> {
+  await page.setContent(html ?? DEFAULT_TEST_HTML, { waitUntil: 'domcontentloaded' });
+}
+
+export function patchExampleDotCom(page: Page): void {
+  void page.route(/https?:\/\/example\.com\/?.*/, async route => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'text/html',
+      body: DEFAULT_TEST_HTML,
+    });
+  });
 }
