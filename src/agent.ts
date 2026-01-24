@@ -345,7 +345,8 @@ export class SentienceAgent {
         }
 
         // Emit step_end event if tracer is enabled
-        const postUrl = this.browser.getPage()?.url() || null;
+        const postPage = this.browser.getPage();
+        const postUrl = typeof postPage?.url === 'function' ? postPage.url() : null;
         if (this.tracer) {
           const preUrl = snap.url;
           let postSnapshotDigest: string | undefined;
@@ -407,7 +408,8 @@ export class SentienceAgent {
           // Emit step_end with whatever data we collected before failure
           // This ensures diff_status and other fields are preserved in traces
           if (this.tracer && stepSnapWithDiff) {
-            const postUrl = this.browser.getPage()?.url() || null;
+            const postPage = this.browser.getPage();
+            const postUrl = typeof postPage?.url === 'function' ? postPage.url() : null;
             const durationMs = Date.now() - stepStartTime;
 
             const stepEndData = TraceEventBuilder.buildPartialStepEndData({
