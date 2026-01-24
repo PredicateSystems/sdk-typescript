@@ -380,8 +380,12 @@ describe('SentienceAgent', () => {
         'Click the button',
         0,
         undefined,
-        ctx => started.push(ctx),
-        ctx => ended.push(ctx)
+        ctx => {
+          started.push(ctx);
+        },
+        ctx => {
+          ended.push(ctx);
+        }
       );
 
       expect(result.success).toBe(true);
