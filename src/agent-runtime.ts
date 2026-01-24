@@ -44,6 +44,7 @@ import { Page } from 'playwright';
 import {
   EvaluateJsRequest,
   EvaluateJsResult,
+  BackendCapabilities,
   Snapshot,
   TabInfo,
   TabListResult,
@@ -54,6 +55,7 @@ import { Tracer } from './tracing/tracer';
 import { TraceEventBuilder } from './utils/trace-event-builder';
 import { LLMProvider } from './llm-provider';
 import { FailureArtifactBuffer, FailureArtifactsOptions } from './failure-artifacts';
+import type { ToolRegistry } from './tools/registry';
 import {
   CaptchaContext,
   CaptchaHandlingError,
@@ -339,6 +341,8 @@ export class AgentRuntime {
   page: Page;
   /** Tracer for event emission */
   readonly tracer: Tracer;
+  /** Optional ToolRegistry for LLM-callable tools */
+  readonly toolRegistry?: ToolRegistry;
 
   /** Current step identifier */
   stepId: string | null = null;
@@ -467,10 +471,11 @@ export class AgentRuntime {
    * @param page - Playwright Page for browser interaction
    * @param tracer - Tracer for emitting verification events
    */
-  constructor(browser: BrowserLike, page: Page, tracer: Tracer) {
+  constructor(browser: BrowserLike, page: Page, tracer: Tracer, toolRegistry?: ToolRegistry) {
     this.browser = browser;
     this.page = page;
     this.tracer = tracer;
+    this.toolRegistry = toolRegistry;
 
     // Best-effort download tracking (does not change behavior unless a download occurs).
     try {
@@ -480,6 +485,28 @@ export class AgentRuntime {
     } catch {
       // ignore
     }
+  }
+
+  capabilities(): BackendCapabilities {
+    const hasTabs = typeof (this as any).listTabs === 'function';
+    const hasEval = typeof (this as any).evaluateJs === 'function';
+    const hasKeyboard = Boolean((this.page as any)?.keyboard);
+    const hasDownloads = this.downloads.length >= 0;
+    let hasFiles = false;
+    if (this.toolRegistry) {
+      hasFiles = Boolean(this.toolRegistry.get('read_file'));
+    }
+    return {
+      tabs: hasTabs,
+      evaluate_js: hasEval,
+      downloads: hasDownloads,
+      filesystem_tools: hasFiles,
+      keyboard: hasKeyboard,
+    };
+  }
+
+  can(name: keyof BackendCapabilities): boolean {
+    return Boolean(this.capabilities()[name]);
   }
 
   /**
