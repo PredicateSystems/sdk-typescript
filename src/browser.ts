@@ -188,7 +188,8 @@ export class SentienceBrowser implements IBrowser {
       await context.setGeolocation(policy.geolocation);
     }
     if (policy.autoGrant && policy.autoGrant.length > 0) {
-      await context.grantPermissions(policy.autoGrant, policy.origin);
+      const options = policy.origin ? { origin: policy.origin } : undefined;
+      await context.grantPermissions(policy.autoGrant, options);
     }
   }
 
