@@ -253,6 +253,14 @@ export interface TabOperationResult {
   error?: string | null;
 }
 
+export interface BackendCapabilities {
+  tabs: boolean;
+  evaluate_js: boolean;
+  downloads: boolean;
+  filesystem_tools: boolean;
+  keyboard: boolean;
+}
+
 export interface EvaluateJsRequest {
   code: string;
   max_output_chars?: number;
@@ -272,6 +280,13 @@ export interface WaitResult {
   element?: Element;
   duration_ms: number;
   timeout: boolean;
+}
+
+export interface ExtractResult {
+  ok: boolean;
+  data?: any;
+  raw?: string | null;
+  error?: string | null;
 }
 
 export interface QuerySelectorObject {
