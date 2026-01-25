@@ -85,6 +85,22 @@
         return !!lower && hints.some(hint => lower.includes(hint));
     }
     function detectCaptcha() {
+        function isVisibleElement(el) {
+            try {
+                if (!el) return !1;
+                const style = window.getComputedStyle(el);
+                if ("none" === style.display || "hidden" === style.visibility) return !1;
+                const opacity = parseFloat(style.opacity || "1");
+                if (!Number.isNaN(opacity) && opacity <= .01) return !1;
+                if (!el.getClientRects || 0 === el.getClientRects().length) return !1;
+                const rect = el.getBoundingClientRect();
+                if (rect.width < 8 || rect.height < 8) return !1;
+                const vw = window.innerWidth || document.documentElement.clientWidth || 0, vh = window.innerHeight || document.documentElement.clientHeight || 0;
+                return !(vw && vh && (rect.bottom <= 0 || rect.right <= 0 || rect.top >= vh || rect.left >= vw));
+            } catch (e) {
+                return !1;
+            }
+        }
         const evidence = {
             text_hits: [],
             selector_hits: [],
@@ -123,11 +139,9 @@
             const iframes = document.querySelectorAll("iframe");
             for (const iframe of iframes) {
                 const src = iframe.getAttribute("src") || "", title = iframe.getAttribute("title") || "";
-                if (src) for (const [provider, hints] of Object.entries(CAPTCHA_IFRAME_HINTS)) if (matchHints(src, hints)) {
-                    addEvidence(evidence.iframe_src_hits, truncateText(src, 120));
-                    isVisibleElement(iframe) && (hasIframeHit = !0, providerSignals[provider] += 1);
-                }
-                if (title && matchHints(title, [ "captcha", "recaptcha" ]) && (addEvidence(evidence.selector_hits, 'iframe[title*="captcha"]'),
+                if (src) for (const [provider, hints] of Object.entries(CAPTCHA_IFRAME_HINTS)) matchHints(src, hints) && (addEvidence(evidence.iframe_src_hits, truncateText(src, 120)), 
+                isVisibleElement(iframe) && (hasIframeHit = !0, providerSignals[provider] += 1));
+                if (title && matchHints(title, [ "captcha", "recaptcha" ]) && (addEvidence(evidence.selector_hits, 'iframe[title*="captcha"]'), 
                 isVisibleElement(iframe) && (hasContainerHit = !0)), evidence.iframe_src_hits.length >= 5) break;
             }
         } catch (e) {}
@@ -143,8 +157,8 @@
             }
         } catch (e) {}
         for (const {selector: selector, provider: provider} of CAPTCHA_CONTAINER_SELECTORS) try {
-            const el = document.querySelector(selector);
-            el && (addEvidence(evidence.selector_hits, selector), isVisibleElement(el) && (hasContainerHit = !0, 
+            const hit = document.querySelector(selector);
+            hit && (addEvidence(evidence.selector_hits, selector), isVisibleElement(hit) && (hasContainerHit = !0, 
             "unknown" !== provider && (providerSignals[provider] += 1)));
         } catch (e) {}
         const textSnippet = function() {
