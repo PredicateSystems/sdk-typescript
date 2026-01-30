@@ -66,4 +66,17 @@ describe('SentienceDebugger', () => {
     expect(runtime.check).toHaveBeenCalled();
     expect(handle).toBe('handle');
   });
+
+  it('can disable auto-step (strict mode)', () => {
+    const runtime = {
+      beginStep: jest.fn().mockReturnValue('step-1'),
+      check: jest.fn().mockReturnValue('handle'),
+    } as unknown as AgentRuntime;
+
+    const dbg = new SentienceDebugger(runtime, { autoStep: false } as any);
+
+    expect(() =>
+      dbg.check((_ctx: any) => ({ passed: true, reason: '', details: {} }), 'has_cart')
+    ).toThrow(/No active step/i);
+  });
 });

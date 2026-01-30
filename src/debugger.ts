@@ -7,9 +7,11 @@ import { Tracer } from './tracing/tracer';
 export class SentienceDebugger {
   readonly runtime: AgentRuntime;
   private stepOpen: boolean = false;
+  private autoStep: boolean = true;
 
-  constructor(runtime: AgentRuntime) {
+  constructor(runtime: AgentRuntime, options?: { autoStep?: boolean }) {
     this.runtime = runtime;
+    this.autoStep = options?.autoStep !== undefined ? Boolean(options.autoStep) : true;
   }
 
   static attach(page: Page, tracer: Tracer, options?: AttachOptions): SentienceDebugger {
@@ -43,6 +45,13 @@ export class SentienceDebugger {
 
   check(predicate: Predicate, label: string, required: boolean = false) {
     if (!this.stepOpen) {
+      if (!this.autoStep) {
+        throw new Error(
+          `No active step. Call dbg.beginStep(...) or dbg.step(...) before check(label=${JSON.stringify(
+            label
+          )}).`
+        );
+      }
       this.beginStep(`verify:${label}`);
     }
     return this.runtime.check(predicate, label, required);
