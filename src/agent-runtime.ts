@@ -355,7 +355,8 @@ export class AgentRuntime {
   /** Current step identifier */
   stepId: string | null = null;
   /** Current step index (0-based) */
-  stepIndex: number = 0;
+  // 0-based step indexing (first auto-generated stepId is "step-0")
+  stepIndex: number = -1;
   /** Most recent snapshot (for assertion context) */
   lastSnapshot: Snapshot | null = null;
   private stepPreSnapshot: Snapshot | null = null;
