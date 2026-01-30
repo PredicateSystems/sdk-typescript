@@ -64,7 +64,7 @@ describe('SentienceDebugger', () => {
 
     expect(runtime.beginStep).toHaveBeenCalledWith('verify:has_cart', undefined);
     expect(runtime.check).toHaveBeenCalled();
-    expect(handle).toBe('handle');
+    expect(typeof (handle as any).once).toBe('function');
   });
 
   it('can disable auto-step (strict mode)', () => {

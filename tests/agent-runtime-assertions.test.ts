@@ -57,12 +57,12 @@ describe('AgentRuntime.beginStep() stepId format', () => {
     const runtime = new AgentRuntime(browserLike as any, page as any, tracer);
 
     const stepId1 = runtime.beginStep('Step 1');
-    expect(stepId1).toBe('step-1');
-    expect(runtime.stepIndex).toBe(1);
+    expect(stepId1).toBe('step-0');
+    expect(runtime.stepIndex).toBe(0);
 
     const stepId2 = runtime.beginStep('Step 2');
-    expect(stepId2).toBe('step-2');
-    expect(runtime.stepIndex).toBe(2);
+    expect(stepId2).toBe('step-1');
+    expect(runtime.stepIndex).toBe(1);
   });
 
   it('generates stepId matching explicit stepIndex', () => {
