@@ -1090,6 +1090,15 @@ export class AgentRuntime {
     return stepEndData;
   }
 
+  /**
+   * User-friendly alias for emitStepEnd().
+   *
+   * Keeps step lifecycle naming symmetric with beginStep().
+   */
+  endStep(opts: Parameters<AgentRuntime['emitStepEnd']>[0] = {}): any {
+    return this.emitStepEnd(opts);
+  }
+
   private async captureArtifactFrame(): Promise<void> {
     if (!this.artifactBuffer) {
       return;

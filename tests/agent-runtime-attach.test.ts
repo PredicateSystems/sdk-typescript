@@ -67,3 +67,15 @@ describe('AgentRuntime.fromPlaywrightPage()', () => {
     spy.mockRestore();
   });
 });
+
+describe('AgentRuntime.endStep()', () => {
+  it('aliases emitStepEnd()', () => {
+    const runtime: any = {
+      emitStepEnd: jest.fn().mockReturnValue({ ok: true }),
+    };
+
+    const out = (AgentRuntime.prototype as any).endStep.call(runtime, { action: 'noop' });
+    expect(runtime.emitStepEnd).toHaveBeenCalledWith({ action: 'noop' });
+    expect(out).toEqual({ ok: true });
+  });
+});
