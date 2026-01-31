@@ -3,7 +3,7 @@
  */
 
 export { SentienceBrowser, PermissionPolicy } from './browser';
-export { snapshot, SnapshotOptions } from './snapshot';
+export { snapshot, SnapshotOptions, SnapshotGatewayError } from './snapshot';
 export { query, find, parseSelector } from './query';
 export {
   back,

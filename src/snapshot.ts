@@ -11,6 +11,44 @@ import { BrowserEvaluator } from './utils/browser-evaluator';
 // Maximum payload size for API requests (10MB server limit)
 const MAX_PAYLOAD_BYTES = 10 * 1024 * 1024;
 
+/**
+ * Structured error for server-side (gateway) snapshot failures.
+ *
+ * Keeps HTTP status/URL/response details available to callers for better logging/debugging.
+ */
+export class SnapshotGatewayError extends Error {
+  public statusCode?: number;
+  public url?: string;
+  public requestId?: string;
+  public responseText?: string;
+  public cause?: unknown;
+
+  constructor(
+    message: string,
+    opts?: {
+      statusCode?: number;
+      url?: string;
+      requestId?: string;
+      responseText?: string;
+      cause?: unknown;
+    }
+  ) {
+    super(message);
+    this.name = 'SnapshotGatewayError';
+    this.statusCode = opts?.statusCode;
+    this.url = opts?.url;
+    this.requestId = opts?.requestId;
+    this.responseText = opts?.responseText;
+    this.cause = opts?.cause;
+  }
+
+  static snip(s: string | undefined, n: number = 400): string | undefined {
+    if (!s) return undefined;
+    const t = String(s).replace(/\r/g, ' ').replace(/\n/g, ' ').trim();
+    return t.slice(0, n);
+  }
+}
+
 export interface SnapshotOptions {
   screenshot?: boolean | { format: 'png' | 'jpeg'; quality?: number };
   limit?: number;
@@ -202,6 +240,7 @@ async function snapshotViaApi(
   if (!page) {
     throw new Error('Browser not started. Call start() first.');
   }
+  const gatewayUrl = `${apiUrl}/v1/snapshot`;
 
   // CRITICAL: Wait for extension injection to complete (CSP-resistant architecture)
   // Even for API mode, we need the extension to collect raw data locally
@@ -278,15 +317,38 @@ async function snapshotViaApi(
   };
 
   try {
-    const response = await fetch(`${apiUrl}/v1/snapshot`, {
+    const response = await fetch(gatewayUrl, {
       method: 'POST',
       headers,
       body: payloadJson,
     });
 
     if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`API request failed: ${response.status} ${errorText}`);
+      let errorText: string | undefined = undefined;
+      try {
+        errorText = await response.text();
+      } catch (_e) {
+        errorText = undefined;
+      }
+      const requestId =
+        response.headers.get('x-request-id') || response.headers.get('x-trace-id') || undefined;
+      const bodySnip = SnapshotGatewayError.snip(errorText);
+
+      const parts: string[] = [];
+      parts.push(`status=${response.status}`);
+      parts.push(`url=${gatewayUrl}`);
+      if (requestId) parts.push(`request_id=${requestId}`);
+      if (bodySnip) parts.push(`body=${bodySnip}`);
+
+      throw new SnapshotGatewayError(
+        `Server-side snapshot API failed: ${parts.join(' ')}. Try using use_api: false to use local extension instead.`,
+        {
+          statusCode: response.status,
+          url: gatewayUrl,
+          requestId,
+          responseText: bodySnip,
+        }
+      );
     }
 
     const apiResult = await response.json();
@@ -359,6 +421,13 @@ async function snapshotViaApi(
 
     return snapshotData;
   } catch (e: any) {
-    throw new Error(`API request failed: ${e.message}`);
+    if (e instanceof SnapshotGatewayError) {
+      throw e;
+    }
+    const errMsg = e instanceof Error ? `${e.name}: ${e.message}` : String(e);
+    throw new SnapshotGatewayError(
+      `Server-side snapshot API failed: url=${gatewayUrl} err=${SnapshotGatewayError.snip(errMsg, 220)}. Try using use_api: false to use local extension instead.`,
+      { url: gatewayUrl, cause: e }
+    );
   }
 }
