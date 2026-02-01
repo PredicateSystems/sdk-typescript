@@ -20,6 +20,35 @@ import { CloudTraceSink, SentienceLogger } from './cloud-sink';
 import { JsonlTraceSink } from './jsonl-sink';
 
 /**
+ * Helper to emit run_start event with available metadata
+ */
+function emitRunStart(
+  tracer: Tracer,
+  agentType?: string,
+  llmModel?: string,
+  goal?: string,
+  startUrl?: string
+): void {
+  try {
+    const config: Record<string, string> = {};
+    if (goal) {
+      config.goal = goal;
+    }
+    if (startUrl) {
+      config.start_url = startUrl;
+    }
+
+    tracer.emitRunStart(
+      agentType || 'SentienceAgent',
+      llmModel,
+      Object.keys(config).length > 0 ? config : undefined
+    );
+  } catch {
+    // Tracing must be non-fatal
+  }
+}
+
+/**
  * Sentience API base URL (constant)
  */
 export const SENTIENCE_API_URL = 'https://api.sentienceapi.com';
@@ -198,6 +227,7 @@ function httpPost(
  * @param options.llmModel - LLM model used (e.g., "gpt-4-turbo", "claude-3-5-sonnet")
  * @param options.startUrl - Starting URL of the agent run (e.g., "https://amazon.com")
  * @param options.screenshotProcessor - Optional function to process screenshots before upload. Takes base64 string, returns processed base64 string. Useful for PII redaction or custom image processing.
+ * @param options.autoEmitRunStart - If true (default), automatically emit run_start event with provided metadata. This ensures traces have complete structure for Studio visualization.
  * @returns Tracer configured with appropriate sink
  *
  * @example
@@ -213,6 +243,7 @@ function httpPost(
  *   uploadTrace: true
  * });
  * // Returns: Tracer with CloudTraceSink
+ * // run_start event is automatically emitted
  *
  * // With screenshot processor for PII redaction
  * const redactPII = (screenshot: string): string => {
@@ -228,6 +259,10 @@ function httpPost(
  * // Pro tier user with local-only tracing
  * const tracer = await createTracer({ apiKey: "sk_pro_xyz", runId: "demo", uploadTrace: false });
  * // Returns: Tracer with JsonlTraceSink (local-only)
+ *
+ * // Disable auto-emit for manual control
+ * const tracer = await createTracer({ runId: "demo", autoEmitRunStart: false });
+ * tracer.emitRunStart("MyAgent", "gpt-4o"); // Manual emit
  *
  * // Free tier user
  * const tracer = await createTracer({ runId: "demo" });
@@ -250,6 +285,7 @@ export async function createTracer(options: {
   llmModel?: string;
   startUrl?: string;
   screenshotProcessor?: (screenshot: string) => string;
+  autoEmitRunStart?: boolean;
 }): Promise<Tracer> {
   const runId = options.runId || randomUUID();
   const apiUrl = options.apiUrl || SENTIENCE_API_URL;
@@ -303,11 +339,18 @@ export async function createTracer(options: {
 
         console.log('☁️  [Sentience] Cloud tracing enabled (Pro tier)');
         // PRODUCTION FIX: Pass runId for persistent cache naming
-        return new Tracer(
+        const tracer = new Tracer(
           runId,
           new CloudTraceSink(uploadUrl, runId, options.apiKey, apiUrl, options.logger),
           options.screenshotProcessor
         );
+
+        // Auto-emit run_start for complete trace structure
+        if (options.autoEmitRunStart !== false) {
+          emitRunStart(tracer, options.agentType, options.llmModel, options.goal, options.startUrl);
+        }
+
+        return tracer;
       } else if (response.status === 403) {
         console.log('⚠️  [Sentience] Cloud tracing requires Pro tier');
         console.log('   Falling back to local-only tracing');
@@ -338,7 +381,14 @@ export async function createTracer(options: {
   const localPath = path.join(tracesDir, `${runId}.jsonl`);
   console.log(`💾 [Sentience] Local tracing: ${localPath}`);
 
-  return new Tracer(runId, new JsonlTraceSink(localPath), options.screenshotProcessor);
+  const tracer = new Tracer(runId, new JsonlTraceSink(localPath), options.screenshotProcessor);
+
+  // Auto-emit run_start for complete trace structure
+  if (options.autoEmitRunStart !== false) {
+    emitRunStart(tracer, options.agentType, options.llmModel, options.goal, options.startUrl);
+  }
+
+  return tracer;
 }
 
 /**

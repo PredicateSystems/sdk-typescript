@@ -203,6 +203,93 @@ export class Tracer {
   }
 
   /**
+   * Emit snapshot event with screenshot for Studio visualization.
+   *
+   * This method builds and emits a 'snapshot' trace event that includes:
+   * - Page URL and element data
+   * - Screenshot (if present in snapshot)
+   * - Step correlation info
+   *
+   * Use this when you want screenshots to appear in the Sentience Studio timeline.
+   *
+   * @param snapshot - Snapshot object (must have 'screenshot' property for images)
+   * @param stepId - Step UUID (for correlating snapshot with a step)
+   * @param stepIndex - Step index (0-based) for Studio timeline ordering
+   * @param screenshotFormat - Format of screenshot ("jpeg" or "png", default: "jpeg")
+   *
+   * @example
+   * // After taking a snapshot with AgentRuntime
+   * const snapshot = await runtime.snapshot();
+   * tracer.emitSnapshot(snapshot, runtime.getStepId(), runtime.getStepIndex());
+   *
+   * // Or use auto-emit (default in AgentRuntime.snapshot())
+   * const snapshot = await runtime.snapshot();  // Auto-emits snapshot event
+   */
+  emitSnapshot(
+    snapshot: any,
+    stepId?: string,
+    stepIndex?: number,
+    screenshotFormat: string = 'jpeg'
+  ): void {
+    if (!snapshot) {
+      return;
+    }
+
+    try {
+      // Build the snapshot event data
+      const data: TraceEventData = {
+        url: snapshot.url,
+        element_count: snapshot.elements?.length || 0,
+        timestamp: snapshot.timestamp,
+      };
+
+      // Include step_index if provided (required for UUID step_ids)
+      if (stepIndex !== undefined) {
+        data.step_index = stepIndex;
+      }
+
+      // Include elements data (simplified for trace)
+      if (snapshot.elements && snapshot.elements.length > 0) {
+        // Normalize importance values to importance_score (0-1 range)
+        const importanceValues = snapshot.elements.map((el: any) => el.importance || 0);
+        const minImportance = Math.min(...importanceValues);
+        const maxImportance = Math.max(...importanceValues);
+        const importanceRange = maxImportance - minImportance;
+
+        data.elements = snapshot.elements.map((el: any) => {
+          const importanceScore =
+            importanceRange > 0 ? (el.importance - minImportance) / importanceRange : 0.5;
+          return {
+            ...el,
+            importance_score: importanceScore,
+          };
+        });
+      }
+
+      // Extract and add screenshot if present
+      const screenshotRaw = snapshot.screenshot;
+      if (screenshotRaw) {
+        // Extract base64 string from data URL if needed
+        // Format: "data:image/jpeg;base64,{base64_string}"
+        let screenshotBase64: string;
+        if (typeof screenshotRaw === 'string' && screenshotRaw.startsWith('data:image')) {
+          const commaIndex = screenshotRaw.indexOf(',');
+          screenshotBase64 =
+            commaIndex !== -1 ? screenshotRaw.slice(commaIndex + 1) : screenshotRaw;
+        } else {
+          screenshotBase64 = screenshotRaw;
+        }
+        data.screenshot_base64 = screenshotBase64;
+        data.screenshot_format = screenshotFormat;
+      }
+
+      this.emit('snapshot', data, stepId);
+    } catch {
+      // Best-effort: don't let trace emission errors break the caller
+    }
+  }
+
+  /**
    * Automatically infer finalStatus from tracked step outcomes if not explicitly set.
    * This is called automatically in close() if finalStatus is still "unknown".
    */

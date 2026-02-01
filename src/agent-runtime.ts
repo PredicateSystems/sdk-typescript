@@ -626,12 +626,25 @@ export class AgentRuntime {
    * Take a snapshot of the current page state.
    *
    * This updates lastSnapshot which is used as context for assertions.
+   * When emitTrace=true (default), automatically emits a 'snapshot' trace event
+   * with screenshot_base64 for Sentience Studio visualization.
    *
    * @param options - Options passed through to browser.snapshot()
+   * @param options.emitTrace - If true (default), emit a 'snapshot' trace event with screenshot.
+   *                           Set to false to disable automatic trace emission.
    * @returns Snapshot of current page state
+   *
+   * @example
+   * // Default: snapshot with auto-emit trace event
+   * const snapshot = await runtime.snapshot();
+   *
+   * // Disable auto-emit for manual control
+   * const snapshot = await runtime.snapshot({ emitTrace: false });
+   * // Later, manually emit if needed:
+   * tracer.emitSnapshot(snapshot, runtime.getStepId());
    */
   async snapshot(options?: Record<string, any>): Promise<Snapshot> {
-    const { _skipCaptchaHandling, ...snapshotOptions } = options || {};
+    const { _skipCaptchaHandling, emitTrace = true, ...snapshotOptions } = options || {};
     this.lastSnapshot = await this.browser.snapshot(this.page, snapshotOptions);
     if (this.lastSnapshot && !this.stepPreSnapshot) {
       this.stepPreSnapshot = this.lastSnapshot;
@@ -640,7 +653,30 @@ export class AgentRuntime {
     if (!_skipCaptchaHandling) {
       await this.handleCaptchaIfNeeded(this.lastSnapshot, 'gateway');
     }
+
+    // Auto-emit snapshot trace event for Studio visualization
+    if (emitTrace && this.lastSnapshot && this.tracer) {
+      this.emitSnapshotTrace(this.lastSnapshot);
+    }
+
     return this.lastSnapshot;
+  }
+
+  /**
+   * Emit a snapshot trace event with screenshot for Studio visualization.
+   *
+   * This is called automatically by snapshot() when emitTrace=true.
+   */
+  private emitSnapshotTrace(snapshot: Snapshot): void {
+    if (!this.tracer) {
+      return;
+    }
+
+    try {
+      this.tracer.emitSnapshot(snapshot, this.stepId ?? undefined, this.stepIndex, 'jpeg');
+    } catch {
+      // Best-effort: don't let trace emission errors break snapshot
+    }
   }
 
   /**
@@ -1167,12 +1203,20 @@ export class AgentRuntime {
    * - Generates a new stepId
    * - Clears assertions from previous step
    * - Increments stepIndex (or uses provided value)
+   * - Emits step_start trace event (optional)
    *
    * @param goal - Description of what this step aims to achieve
    * @param stepIndex - Optional explicit step index (otherwise auto-increments)
+   * @param options - Optional settings: emitTrace (default true), preUrl
    * @returns Generated stepId in format 'step-N' where N is the step index
    */
-  beginStep(goal: string, stepIndex?: number): string {
+  beginStep(
+    goal: string,
+    stepIndex?: number,
+    options?: { emitTrace?: boolean; preUrl?: string }
+  ): string {
+    const { emitTrace = true, preUrl } = options || {};
+
     // Clear previous step state
     this.assertionsThisStep = [];
     this.stepPreSnapshot = null;
@@ -1189,6 +1233,16 @@ export class AgentRuntime {
 
     // Generate stepId in 'step-N' format for Studio compatibility
     this.stepId = `step-${this.stepIndex}`;
+
+    // Emit step_start trace event for Studio timeline display
+    if (emitTrace && this.tracer) {
+      try {
+        const url = preUrl || this.lastSnapshot?.url || this.page?.url?.() || '';
+        this.tracer.emitStepStart(this.stepId, this.stepIndex, goal, 0, url);
+      } catch {
+        // Tracing must be non-fatal
+      }
+    }
 
     return this.stepId;
   }

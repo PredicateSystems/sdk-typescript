@@ -684,4 +684,178 @@ describe('Tracer', () => {
       expect(tracer.getStats().final_status).toBe('success');
     });
   });
+
+  // ============================================================================
+  // Tests for emitSnapshot() helper method
+  // ============================================================================
+
+  describe('emitSnapshot', () => {
+    interface MockSnapshot {
+      url: string;
+      screenshot?: string;
+      timestamp?: string;
+      elements: any[];
+    }
+
+    it('should emit snapshot event with basic data', async () => {
+      const sink = new JsonlTraceSink(testFile);
+      const tracer = new Tracer('test-run', sink);
+
+      const snapshot: MockSnapshot = {
+        url: 'https://example.com',
+        timestamp: '2024-01-01T00:00:00.000Z',
+        elements: [],
+      };
+
+      tracer.emitSnapshot(snapshot, 'step-456', 1);
+
+      await tracer.close();
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      const content = await readFileWithRetry(testFile);
+      const event = JSON.parse(content.trim()) as TraceEvent;
+
+      expect(event.type).toBe('snapshot');
+      expect(event.step_id).toBe('step-456');
+      expect(event.data.url).toBe('https://example.com');
+      expect(event.data.step_index).toBe(1);
+      expect(event.data.element_count).toBe(0);
+    });
+
+    it('should include screenshot_base64 when screenshot is present', async () => {
+      const sink = new JsonlTraceSink(testFile);
+      const tracer = new Tracer('test-run', sink);
+
+      const snapshot: MockSnapshot = {
+        url: 'https://example.com',
+        timestamp: '2024-01-01T00:00:00.000Z',
+        screenshot: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJ',
+        elements: [],
+      };
+
+      tracer.emitSnapshot(snapshot, 'step-456');
+
+      await tracer.close();
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      const content = await readFileWithRetry(testFile);
+      const event = JSON.parse(content.trim()) as TraceEvent;
+
+      expect(event.type).toBe('snapshot');
+      expect(event.data.screenshot_base64).toBe('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJ');
+      expect(event.data.screenshot_format).toBe('jpeg');
+    });
+
+    it('should extract base64 from data URL format', async () => {
+      const sink = new JsonlTraceSink(testFile);
+      const tracer = new Tracer('test-run', sink);
+
+      const snapshot: MockSnapshot = {
+        url: 'https://example.com',
+        timestamp: '2024-01-01T00:00:00.000Z',
+        screenshot: 'data:image/jpeg;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJ',
+        elements: [],
+      };
+
+      tracer.emitSnapshot(snapshot, 'step-456');
+
+      await tracer.close();
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      const content = await readFileWithRetry(testFile);
+      const event = JSON.parse(content.trim()) as TraceEvent;
+
+      // Should extract just the base64 part (strip data URL prefix)
+      expect(event.data.screenshot_base64).toBe('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJ');
+      expect(event.data.screenshot_format).toBe('jpeg');
+    });
+
+    it('should work without stepId', async () => {
+      const sink = new JsonlTraceSink(testFile);
+      const tracer = new Tracer('test-run', sink);
+
+      const snapshot: MockSnapshot = {
+        url: 'https://example.com',
+        timestamp: '2024-01-01T00:00:00.000Z',
+        elements: [],
+      };
+
+      tracer.emitSnapshot(snapshot);
+
+      await tracer.close();
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      const content = await readFileWithRetry(testFile);
+      const event = JSON.parse(content.trim()) as TraceEvent;
+
+      expect(event.type).toBe('snapshot');
+      expect(event.step_id).toBeUndefined();
+      expect(event.data.url).toBe('https://example.com');
+    });
+
+    it('should handle null snapshot gracefully', async () => {
+      const sink = new JsonlTraceSink(testFile);
+      const tracer = new Tracer('test-run', sink);
+
+      tracer.emitSnapshot(null);
+
+      await tracer.close();
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // Should not emit anything for null snapshot
+      const content = await readFileWithRetry(testFile);
+      expect(content.trim()).toBe('');
+    });
+
+    it('should support custom screenshot format', async () => {
+      const sink = new JsonlTraceSink(testFile);
+      const tracer = new Tracer('test-run', sink);
+
+      const snapshot: MockSnapshot = {
+        url: 'https://example.com',
+        timestamp: '2024-01-01T00:00:00.000Z',
+        screenshot: 'iVBORw0KGgo...',
+        elements: [],
+      };
+
+      tracer.emitSnapshot(snapshot, 'step-456', undefined, 'png');
+
+      await tracer.close();
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      const content = await readFileWithRetry(testFile);
+      const event = JSON.parse(content.trim()) as TraceEvent;
+
+      expect(event.data.screenshot_format).toBe('png');
+    });
+
+    it('should include elements with normalized importance_score', async () => {
+      const sink = new JsonlTraceSink(testFile);
+      const tracer = new Tracer('test-run', sink);
+
+      const snapshot: MockSnapshot = {
+        url: 'https://example.com',
+        timestamp: '2024-01-01T00:00:00.000Z',
+        elements: [
+          { id: 1, role: 'button', importance: 100 },
+          { id: 2, role: 'input', importance: 50 },
+          { id: 3, role: 'link', importance: 0 },
+        ],
+      };
+
+      tracer.emitSnapshot(snapshot, 'step-456');
+
+      await tracer.close();
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      const content = await readFileWithRetry(testFile);
+      const event = JSON.parse(content.trim()) as TraceEvent;
+
+      expect(event.data.elements).toHaveLength(3);
+      const elements = event.data.elements!;
+      expect(elements[0].importance_score).toBe(1.0); // max importance = 1.0
+      expect(elements[1].importance_score).toBe(0.5); // mid = 0.5
+      expect(elements[2].importance_score).toBe(0.0); // min = 0.0
+    });
+  });
 });
