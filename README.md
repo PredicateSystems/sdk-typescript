@@ -1,8 +1,8 @@
-# Sentience TypeScript SDK
+# Predicate TypeScript SDK
 
 > **A verification & control layer for AI agents that operate browsers**
 
-Sentience is built for **AI agent developers** who already use Playwright / CDP / LangGraph and care about **flakiness, cost, determinism, evals, and debugging**.
+Predicate is built for **AI agent developers** who already use Playwright / CDP / LangGraph and care about **flakiness, cost, determinism, evals, and debugging**.
 
 Often described as _Jest for Browser AI Agents_ - but applied to end-to-end agent runs (not unit tests).
 
@@ -10,7 +10,7 @@ The core loop is:
 
 > **Agent → Snapshot → Action → Verification → Artifact**
 
-## What Sentience is
+## What Predicate is
 
 - A **verification-first runtime** (`AgentRuntime`) for browser agents
 - Treats the browser as an adapter (Playwright / CDP); **`AgentRuntime` is the product**
@@ -19,7 +19,7 @@ The core loop is:
 - Enables **local LLM small models (3B-7B)** for browser automation (privacy, compliance, and cost control)
 - Keeps vision models **optional** (use as a fallback when DOM/snapshot structure falls short, e.g. `<canvas>`)
 
-## What Sentience is not
+## What Predicate is not
 
 - Not a browser driver
 - Not a Playwright replacement
@@ -90,9 +90,9 @@ void main();
 
 ## PredicateDebugger: attach to your existing agent framework (sidecar mode)
 
-If you already have an agent loop (LangGraph, custom planner/executor), keep it and attach Sentience as a **verifier + trace layer**.
+If you already have an agent loop (LangGraph, custom planner/executor), keep it and attach Predicate as a **verifier + trace layer**.
 
-Key idea: your agent still executes actions — Sentience **snapshots and verifies outcomes**.
+Key idea: your agent still executes actions — Predicate **snapshots and verifies outcomes**.
 
 ```ts
 import type { Page } from 'playwright';
@@ -120,7 +120,7 @@ async function runExistingAgent(page: Page): Promise<void> {
 
 ## SDK-driven full loop (snapshots + actions)
 
-If you want Sentience to drive the loop end-to-end, you can use the SDK primitives directly: take a snapshot, select elements, act, then verify.
+If you want Predicate to drive the loop end-to-end, you can use the SDK primitives directly: take a snapshot, select elements, act, then verify.
 
 ```ts
 import { PredicateBrowser, snapshot, find, typeText, click, waitFor } from '@predicatelabs/sdk';
@@ -243,10 +243,10 @@ runtime.assert(downloadCompleted('report.csv'), 'download_ok', true);
 npx predicate driver --url https://example.com
 ```
 
-- **Verification + artifacts + debugging with time-travel traces (Sentience Studio demo)**:
+- **Verification + artifacts + debugging with time-travel traces (Predicate Studio demo)**:
 
 <video src="https://github.com/user-attachments/assets/7ffde43b-1074-4d70-bb83-2eb8d0469307" controls muted playsinline></video>
 
 If the video tag doesn’t render in your GitHub README view, use this link: [`sentience-studio-demo.mp4`](https://github.com/user-attachments/assets/7ffde43b-1074-4d70-bb83-2eb8d0469307)
 
-- **Sentience SDK Documentation**: https://www.sentienceapi.com/docs
+- **Predicate SDK Documentation**: https://predicatelabs.dev/docs
