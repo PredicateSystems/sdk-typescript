@@ -1134,12 +1134,14 @@ export async function search(
   const urlBefore = page.url();
   const url = buildSearchUrl(query, engine);
   await browser.goto(url);
-  // Some search engines keep long-lived background requests open in CI,
-  // so treat networkidle as a best-effort signal instead of a hard requirement.
+  // Use lightweight readiness checks instead of networkidle.
+  // On Windows CI and some search engines, networkidle can remain pending due to
+  // long-lived background requests and cause flaky timeouts.
   try {
-    await page.waitForLoadState('networkidle', { timeout: 5000 });
+    await page.waitForLoadState('domcontentloaded', { timeout: 5000 });
+    await page.waitForLoadState('load', { timeout: 5000 });
   } catch {
-    // no-op: page is already loaded enough for URL/result assertions
+    // best-effort only; URL/outcome assertions do not require full idle
   }
 
   const durationMs = Date.now() - startTime;
