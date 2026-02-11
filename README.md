@@ -42,16 +42,6 @@ Use the new `Predicate*` class names for all new code:
 - `PredicateDebugger`
 - `backends.PredicateContext`
 
-The legacy `Sentience*` names are still available as runtime aliases for compatibility, but are now soft-deprecated and planned for removal after **1-2 releases**.
-
-Mapping:
-
-- `SentienceBrowser` -> `PredicateBrowser`
-- `SentienceAgent` -> `PredicateAgent`
-- `SentienceVisualAgent` -> `PredicateVisualAgent`
-- `SentienceDebugger` -> `PredicateDebugger`
-- `backends.SentienceContext` -> `backends.PredicateContext`
-
 ## Conceptual example (why this exists)
 
 - Steps are **gated by verifiable UI assertions**
@@ -61,7 +51,7 @@ Mapping:
 ## Quickstart: a verification-first loop
 
 ```ts
-import { SentienceBrowser, AgentRuntime } from '@predicatelabs/sdk';
+import { PredicateBrowser, AgentRuntime } from '@predicatelabs/sdk';
 import { JsonlTraceSink, Tracer } from '@predicatelabs/sdk';
 import { exists, urlContains } from '@predicatelabs/sdk';
 import type { Page } from 'playwright';
@@ -69,14 +59,14 @@ import type { Page } from 'playwright';
 async function main(): Promise<void> {
   const tracer = new Tracer('demo', new JsonlTraceSink('trace.jsonl'));
 
-  const browser = new SentienceBrowser();
+  const browser = new PredicateBrowser();
   await browser.start();
   const page = browser.getPage();
   if (!page) throw new Error('no page');
 
   await page.goto('https://example.com');
 
-  // AgentRuntime needs a snapshot provider; SentienceBrowser.snapshot() does not depend on Page,
+  // AgentRuntime needs a snapshot provider; PredicateBrowser.snapshot() does not depend on Page,
   // so we wrap it to fit the runtime interface.
   const runtime = new AgentRuntime(
     { snapshot: async (_page: Page, options?: Record<string, any>) => browser.snapshot(options) },
@@ -98,7 +88,7 @@ async function main(): Promise<void> {
 void main();
 ```
 
-## SentienceDebugger: attach to your existing agent framework (sidecar mode)
+## PredicateDebugger: attach to your existing agent framework (sidecar mode)
 
 If you already have an agent loop (LangGraph, custom planner/executor), keep it and attach Sentience as a **verifier + trace layer**.
 
@@ -106,11 +96,11 @@ Key idea: your agent still executes actions — Sentience **snapshots and verifi
 
 ```ts
 import type { Page } from 'playwright';
-import { SentienceDebugger, Tracer, JsonlTraceSink, exists, urlContains } from '@predicatelabs/sdk';
+import { PredicateDebugger, Tracer, JsonlTraceSink, exists, urlContains } from '@predicatelabs/sdk';
 
 async function runExistingAgent(page: Page): Promise<void> {
   const tracer = new Tracer('run-123', new JsonlTraceSink('trace.jsonl'));
-  const dbg = SentienceDebugger.attach(page, tracer);
+  const dbg = PredicateDebugger.attach(page, tracer);
 
   await dbg.step('agent_step: navigate + verify', async () => {
     // 1) Let your framework do whatever it does
@@ -133,10 +123,10 @@ async function runExistingAgent(page: Page): Promise<void> {
 If you want Sentience to drive the loop end-to-end, you can use the SDK primitives directly: take a snapshot, select elements, act, then verify.
 
 ```ts
-import { SentienceBrowser, snapshot, find, typeText, click, waitFor } from '@predicatelabs/sdk';
+import { PredicateBrowser, snapshot, find, typeText, click, waitFor } from '@predicatelabs/sdk';
 
 async function loginExample(): Promise<void> {
-  const browser = new SentienceBrowser();
+  const browser = new PredicateBrowser();
   await browser.start();
   const page = browser.getPage();
   if (!page) throw new Error('no page');
@@ -205,7 +195,7 @@ const toolsForLLM = registry.llmTools();
 Chrome permission prompts are outside the DOM and can be invisible to snapshots. Prefer setting a policy **before navigation**.
 
 ```ts
-import { SentienceBrowser } from '@predicatelabs/sdk';
+import { PredicateBrowser } from '@predicatelabs/sdk';
 import type { PermissionPolicy } from '@predicatelabs/sdk';
 
 const policy: PermissionPolicy = {
@@ -216,7 +206,7 @@ const policy: PermissionPolicy = {
 };
 
 // `permissionPolicy` is the last constructor argument; pass `keepAlive` right before it.
-const browser = new SentienceBrowser(
+const browser = new PredicateBrowser(
   undefined,
   undefined,
   undefined,
