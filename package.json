@@ -29,6 +29,9 @@
   "bin": {
     "predicate": "./dist/cli.js"
   },
+  "publishConfig": {
+    "access": "public"
+  },
   "dependencies": {
     "canvas": "^3.2.1",
     "playwright": "^1.40.0",
