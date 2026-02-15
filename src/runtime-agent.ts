@@ -179,6 +179,106 @@ export class RuntimeAgent {
     }
   }
 
+  /**
+   * Execute exactly one action for a step without owning step lifecycle.
+   *
+   * This is intended for orchestrators that already call `runtime.beginStep(...)` /
+   * `runtime.emitStepEnd(...)` and want to reuse the SDK's snapshot-first action proposal
+   * and execution logic without double-counting budgets or emitting duplicate events.
+   */
+  async actOnce(opts: {
+    taskGoal: string;
+    step: RuntimeStep;
+    allowVisionFallback?: boolean;
+    historySummary?: string;
+  }): Promise<string> {
+    const res = await this.actOnceResult(opts);
+    return res.action;
+  }
+
+  /**
+   * Like `actOnce`, but also returns the pre-action snapshot used for proposal.
+   */
+  async actOnceWithSnapshot(opts: {
+    taskGoal: string;
+    step: RuntimeStep;
+    allowVisionFallback?: boolean;
+    historySummary?: string;
+  }): Promise<{ action: string; snap: Snapshot }> {
+    const res = await this.actOnceResult(opts);
+    return { action: res.action, snap: res.snap };
+  }
+
+  /**
+   * Like `actOnce`, but also indicates whether vision was used.
+   */
+  async actOnceResult(opts: {
+    taskGoal: string;
+    step: RuntimeStep;
+    allowVisionFallback?: boolean;
+    historySummary?: string;
+  }): Promise<{ action: string; snap: Snapshot; usedVision: boolean }> {
+    const { taskGoal, step } = opts;
+    const allowVisionFallback = opts.allowVisionFallback ?? true;
+    const historySummary = (opts.historySummary ?? '').trim();
+
+    const snap = await this.snapshotWithRamp(step);
+
+    if (allowVisionFallback && (await this.shouldShortCircuitToVision(step, snap))) {
+      const provider = this.visionExecutor;
+      if (provider && provider.supportsVision?.()) {
+        const url = this.runtime.page?.url?.() ?? snap?.url ?? '(unknown)';
+        const buf = (await (this.runtime.page as any).screenshot({ type: 'png' })) as Buffer;
+        const imageBase64 = Buffer.from(buf).toString('base64');
+
+        const { systemPrompt, userPrompt } = this.visionExecutorPrompts({
+          taskGoal,
+          step,
+          url,
+          snap,
+        });
+
+        const resp = await provider.generateWithImage(systemPrompt, userPrompt, imageBase64, {
+          temperature: 0.0,
+        });
+        const action = this.extractActionFromText(resp.content);
+        await this.executeAction(action, snap ?? undefined);
+        return { action, snap, usedVision: true };
+      }
+    }
+
+    // Structured snapshot-first proposal.
+    let domContext = this.structuredLLM.buildContext(snap, step.goal);
+    if (this.domContextPostprocessor) {
+      domContext = this.domContextPostprocessor(domContext);
+    }
+
+    let action: string;
+    if (this.structuredPromptBuilder) {
+      const { systemPrompt, userPrompt } = this.structuredPromptBuilder(
+        taskGoal,
+        step.goal,
+        domContext,
+        snap,
+        historySummary || (this.historySummaryProvider?.() ?? '').trim()
+      );
+      const resp = await this.executor.generate(systemPrompt, userPrompt, { temperature: 0.0 });
+      action = this.extractActionFromText(resp.content);
+    } else {
+      let combinedGoal = taskGoal;
+      const hs = historySummary || (this.historySummaryProvider?.() ?? '').trim();
+      if (hs) {
+        combinedGoal = `${taskGoal}\n\nRECENT STEPS:\n${hs}`;
+      }
+      combinedGoal = `${combinedGoal}\n\nSTEP: ${step.goal}`;
+      const resp = await this.structuredLLM.queryLLM(domContext, combinedGoal);
+      action = this.extractActionFromText(resp.content);
+    }
+
+    await this.executeAction(action, snap);
+    return { action, snap, usedVision: false };
+  }
+
   private async runHook(
     hook: ((ctx: StepHookContext) => void | Promise<void>) | undefined,
     ctx: StepHookContext

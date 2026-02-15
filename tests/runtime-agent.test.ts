@@ -83,6 +83,46 @@ function makeClickableElement(id: number): Element {
 }
 
 describe('RuntimeAgent (runtime-backed agent)', () => {
+  it('actOnce executes without step lifecycle', async () => {
+    const sink = new MockSink();
+    const tracer = new Tracer('run', sink);
+    const page = new MockPage('https://example.com/start') as any;
+
+    const snapshots: Snapshot[] = [
+      {
+        status: 'success',
+        url: 'https://example.com/start',
+        elements: [makeClickableElement(1)],
+        timestamp: 't1',
+      },
+    ];
+
+    const browserLike = {
+      snapshot: async () => snapshots.shift() as Snapshot,
+    };
+
+    const runtime = new AgentRuntime(browserLike as any, page as any, tracer);
+    // Guard: actOnce must not call step lifecycle APIs.
+    (runtime as any).beginStep = jest.fn(() => {
+      throw new Error('beginStep should not be called by actOnce');
+    });
+    (runtime as any).emitStepEnd = jest.fn(() => {
+      throw new Error('emitStepEnd should not be called by actOnce');
+    });
+
+    const executor = new ProviderStub(['CLICK(1)']);
+    const agent = new RuntimeAgent({ runtime, executor });
+
+    const action = await agent.actOnce({
+      taskGoal: 'Do a thing',
+      step: { goal: 'Click OK', maxSnapshotAttempts: 1 },
+      allowVisionFallback: false,
+    });
+
+    expect(action.toUpperCase().startsWith('CLICK(')).toBe(true);
+    expect(page.mouseClickCalls.length).toBeGreaterThan(0);
+  });
+
   it('structured executor succeeds without vision', async () => {
     const sink = new MockSink();
     const tracer = new Tracer('run', sink);
