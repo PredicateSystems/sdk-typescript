@@ -162,7 +162,9 @@ jobs:
         # npm v10 syntax:
         # - `npm access list packages <scope>` checks whether the user can see/publish packages in that scope
         # - if you are not a member/owner of the npm org, this typically fails (403/404) which is what we want surfaced
-        npm access list packages @predicatesystems --registry https://registry.npmjs.org --json
+        # NOTE: Some orgs restrict org-wide package listing to admins/owners.
+        # Treat this as best-effort diagnostics; do not block publishing.
+        npm access list packages @predicatesystems --registry https://registry.npmjs.org --json || echo "WARN: cannot list org packages for @predicatesystems (may be restricted; continuing)"
         echo ""
         echo "=== Sanity: packages visible to current user ==="
         npm access list packages "$(npm whoami --registry https://registry.npmjs.org)" --registry https://registry.npmjs.org --json
