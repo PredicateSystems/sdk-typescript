@@ -170,7 +170,7 @@ jobs:
         npm profile get --registry https://registry.npmjs.org --json || echo "WARN: cannot read npm profile (continuing)"
         echo ""
         echo "=== Sanity: does package already exist? (ok if 404) ==="
-        npm view @predicatesystems/sdk version --registry https://registry.npmjs.org --json || echo "INFO: @predicatesystems/sdk not found yet (expected for first publish)"
+        npm view @predicatesystems/runtime version --registry https://registry.npmjs.org --json || echo "INFO: @predicatesystems/runtime not found yet (expected for first publish)"
         
     - name: Publish to npm
       run: |
@@ -185,14 +185,55 @@ jobs:
         tag_name: v${{ steps.version.outputs.version }}
         name: Release v${{ steps.version.outputs.version }}
         body: |
-          Release v${{ steps.version.outputs.version }} of @predicatesystems/sdk
+          Release v${{ steps.version.outputs.version }} of @predicatesystems/runtime
 
           ## Installation
           ```bash
-          npm install @predicatesystems/sdk@${{ steps.version.outputs.version }}
+          npm install @predicatesystems/runtime@${{ steps.version.outputs.version }}
           ```
         draft: false
         prerelease: false
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  publish-compat-shim:
+    runs-on: ubuntu-latest
+    needs: build-and-publish
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        registry-url: 'https://registry.npmjs.org'
+        scope: '@predicatesystems'
+        always-auth: true
+
+    - name: Extract version from tag or input
+      id: version
+      run: |
+        if [ "${{ github.event_name }}" == "release" ]; then
+          TAG_NAME="${{ github.event.release.tag_name }}"
+          VERSION=${TAG_NAME#v}
+        else
+          VERSION="${{ github.event.inputs.version }}"
+        fi
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "Version: $VERSION"
+
+    - name: Sync shim version and runtime dependency
+      run: |
+        VERSION="${{ steps.version.outputs.version }}"
+        npm pkg set version=$VERSION --prefix compat/sdk-shim
+        npm pkg set dependencies."@predicatesystems/runtime"=$VERSION --prefix compat/sdk-shim
+
+    - name: Publish compatibility shim to npm
+      run: |
+        cd compat/sdk-shim
+        npm publish --access public
+      env:
+        NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
