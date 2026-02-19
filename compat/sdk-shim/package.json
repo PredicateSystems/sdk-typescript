@@ -1,6 +1,6 @@
 {
   "name": "@predicatesystems/sdk",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Compatibility shim for @predicatesystems/runtime",
   "main": "index.js",
   "types": "index.d.ts",
@@ -8,7 +8,7 @@
     "access": "public"
   },
   "dependencies": {
-    "@predicatesystems/runtime": "1.1.0"
+    "@predicatesystems/runtime": "1.1.1"
   },
   "files": [
     "index.js",
