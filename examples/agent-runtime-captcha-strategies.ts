@@ -5,8 +5,8 @@ import {
   HumanHandoffSolver,
   SentienceBrowser,
   VisionSolver,
-} from '@predicatesystems/sdk';
-import { createTracer } from '@predicatesystems/sdk';
+} from '@predicatesystems/runtime';
+import { createTracer } from '@predicatesystems/runtime';
 
 async function notifyWebhook(ctx: any): Promise<void> {
   console.log(`[captcha] external resolver notified: url=${ctx.url} run_id=${ctx.runId}`);

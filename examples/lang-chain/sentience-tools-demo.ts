@@ -2,7 +2,7 @@
  * Example: Wrap Sentience TS SDK primitives as LangChain JS tools.
  *
  * Install (example):
- *   npm install @predicatesystems/sdk @langchain/core zod
+ *   npm install @predicatesystems/runtime @langchain/core zod
  *
  * Run:
  *   npx ts-node examples/lang-chain/sentience-tools-demo.ts

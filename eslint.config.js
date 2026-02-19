@@ -49,6 +49,7 @@ module.exports = tseslint.config(
       'node_modules/**',
       '*.js',
       'src/extension/**',
+      'compat/**',
       'examples/**',
       'tests/**',
     ],

@@ -1,0 +1,19 @@
+{
+  "name": "@predicatesystems/sdk",
+  "version": "1.1.0",
+  "description": "Compatibility shim for @predicatesystems/runtime",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@predicatesystems/runtime": "1.1.0"
+  },
+  "files": [
+    "index.js",
+    "index.d.ts",
+    "README.md"
+  ],
+  "license": "(MIT OR Apache-2.0)"
+}
