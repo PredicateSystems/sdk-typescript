@@ -61,7 +61,17 @@ export {
 } from './conversational-agent';
 
 // Tracing Layer (v0.3.1+)
-export { Tracer, TraceSink, JsonlTraceSink, TraceEvent, TraceEventData } from './tracing';
+export {
+  Tracer,
+  TraceSink,
+  JsonlTraceSink,
+  CloudTraceSink,
+  TraceEvent,
+  TraceEventData,
+  createTracer,
+  createLocalTracer,
+  SENTIENCE_API_URL,
+} from './tracing';
 
 // Verification Layer (agent assertion loop)
 export {
