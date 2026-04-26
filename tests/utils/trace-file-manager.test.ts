@@ -5,6 +5,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
+import { EventEmitter } from 'events';
 import { TraceFileManager } from '../../src/utils/trace-file-manager';
 import { TraceEvent } from '../../src/tracing/types';
 
@@ -98,6 +99,37 @@ describe('TraceFileManager', () => {
 
       await expect(TraceFileManager.closeStream(stream)).resolves.not.toThrow();
       expect(stream.destroyed).toBe(true);
+    });
+
+    it('should wait for the close event before resolving', async () => {
+      class DelayedCloseStream extends EventEmitter {
+        destroyed = false;
+
+        end(callback?: () => void): void {
+          callback?.();
+        }
+
+        destroy(): void {
+          this.destroyed = true;
+          this.emit('close');
+        }
+      }
+
+      const stream = new DelayedCloseStream();
+      let resolved = false;
+      const closePromise = TraceFileManager.closeStream(stream as unknown as fs.WriteStream).then(
+        () => {
+          resolved = true;
+        }
+      );
+
+      await Promise.resolve();
+      expect(resolved).toBe(false);
+
+      stream.destroy();
+      await closePromise;
+
+      expect(resolved).toBe(true);
     });
   });
 
