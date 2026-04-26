@@ -104,21 +104,43 @@ export class TraceFileManager {
         return;
       }
 
-      stream.end(() => {
-        resolve();
-      });
-
-      stream.once('error', error => {
-        reject(error);
-      });
-
-      // Timeout after 5 seconds
-      setTimeout(() => {
-        if (!stream.destroyed) {
+      let settled = false;
+      const timeout = setTimeout(() => {
+        if (!settled) {
+          settled = true;
           stream.destroy();
           resolve();
         }
       }, 5000);
+      timeout.unref?.();
+
+      const cleanup = () => {
+        clearTimeout(timeout);
+        stream.removeListener('error', onError);
+        stream.removeListener('close', onClose);
+      };
+
+      const onClose = () => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        cleanup();
+        resolve();
+      };
+
+      const onError = (error: Error) => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        cleanup();
+        reject(error);
+      };
+
+      stream.once('close', onClose);
+      stream.once('error', onError);
+      stream.end();
     });
   }
 
